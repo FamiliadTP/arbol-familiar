@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { supabase, Member, PendingEdit } from '@/lib/supabase'
-import { fullName, calcAge, fmtDate, monthNames } from '@/lib/utils'
+import { supabase, Member, PendingEdit } from '../lib/supabase'
+import { fullName, calcAge, fmtDate, monthNames } from '../lib/utils'
 
 // ── SAMPLE DATA (loaded on first run if DB is empty) ──────────────────────────
 const SAMPLE_MEMBERS: Omit<Member, 'created_at'>[] = [
