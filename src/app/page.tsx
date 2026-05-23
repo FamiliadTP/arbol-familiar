@@ -448,7 +448,7 @@ export default function Home() {
   async function handleImportExcel(file:File){
     setImporting(true)
     try{
-      const XLSX=await import('https://cdn.sheetjs.com/xlsx-0.20.0/package/xlsx.mjs' as any)
+      const XLSX=await import('xlsx')
       const buf=await file.arrayBuffer()
       const wb=XLSX.read(buf)
       const ws=wb.Sheets[wb.SheetNames[0]]
