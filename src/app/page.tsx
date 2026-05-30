@@ -162,7 +162,7 @@ function ChildrenRow({children, members, onSelect}: {children: Member[], members
 
 // ── TREE RENDERING ───────────────────────────────────────────────────────────
 
-const MLINE = {width:10,height:2,borderTop:'2.5px dashed #f59e0b',flexShrink:0}
+const MLINE = {width:20,height:2,borderTop:'3px dashed #d97706',flexShrink:0}
 const vline = (h:number, color='#cbd5e1') => ({width:2,height:h,background:color,flexShrink:0,alignSelf:'center'})
 
 // Renders children with: vertical stem → horizontal bar → vertical drops
