@@ -96,8 +96,12 @@ function MiniCard({person,onSelect}:{person:Member;onSelect:(p:Member)=>void}){
   )
 }
 
-function getMarriages(person: Member, members: Member[]): Array<{spouse: Member|null, children: Member[]}> {
-  const allChildren = members.filter(m => person.children_ids?.includes(m.id))
+function sortByIds(members: Member[], ids: string[]): Member[] {
+  return [...members].sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id))
+}
+
+function getMarriages(person: Member, members: Member[]): Array<{spouse: Member|null, children: Member[], spouseOwnChildren: Member[]}> {
+  const allChildren = sortByIds(members.filter(m => person.children_ids?.includes(m.id)), person.children_ids ?? [])
   const currentSpouse = members.find(m => m.id === person.spouse_id) ?? null
   let prevMarriages: Array<{spouse_id: string|null, children_ids: string[]}> = []
   if (person.bio_notes) {
@@ -106,68 +110,116 @@ function getMarriages(person: Member, members: Member[]): Array<{spouse: Member|
       if (Array.isArray(parsed)) prevMarriages = parsed
     } catch {}
   }
+  const getSpouseOwnChildren = (spouse: Member|null): Member[] => {
+    if (!spouse) return []
+    const own = members.filter(m => spouse.children_ids?.includes(m.id) && !person.children_ids?.includes(m.id))
+    return sortByIds(own, spouse.children_ids ?? [])
+  }
   if (prevMarriages.length === 0) {
-    return [{ spouse: currentSpouse, children: allChildren }]
+    return [{ spouse: currentSpouse, children: allChildren, spouseOwnChildren: getSpouseOwnChildren(currentSpouse) }]
   }
   const usedChildIds = new Set<string>()
-  const result: Array<{spouse: Member|null, children: Member[]}> = []
+  const result: Array<{spouse: Member|null, children: Member[], spouseOwnChildren: Member[]}> = []
   for (const pm of prevMarriages) {
     const spouse = members.find(m => m.id === pm.spouse_id) ?? null
-    const children = members.filter(m => pm.children_ids.includes(m.id))
+    const children = sortByIds(members.filter(m => pm.children_ids.includes(m.id)), pm.children_ids)
     children.forEach(c => usedChildIds.add(c.id))
-    result.push({ spouse, children })
+    result.push({ spouse, children, spouseOwnChildren: getSpouseOwnChildren(spouse) })
   }
   const currentChildren = allChildren.filter(c => !usedChildIds.has(c.id))
-  result.push({ spouse: currentSpouse, children: currentChildren })
+  result.push({ spouse: currentSpouse, children: currentChildren, spouseOwnChildren: getSpouseOwnChildren(currentSpouse) })
   return result
 }
+
+function ChildrenRow({children, members, onSelect}: {children: Member[], members: Member[], onSelect: (p:Member)=>void}) {
+  if (!children.length) return null
+  return (
+    <>
+      <div style={{width:2,height:18,background:'#cbd5e1'}}/>
+      <div style={{display:'flex',gap:8,borderTop:'2px solid #cbd5e1'}}>
+        {children.map(child=>(
+          <div key={child.id} style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
+            <div style={{width:2,height:16,background:'#cbd5e1'}}/>
+            <TreeNode person={child} members={members} onSelect={onSelect}/>
+          </div>
+        ))}
+      </div>
+    </>
+  )
+}
+
 
 function TreeNode({person,members,onSelect}:{person:Member;members:Member[];onSelect:(p:Member)=>void}){
   const marriages = getMarriages(person, members)
   const isMulti = marriages.length > 1
 
   if (!isMulti) {
-    const { spouse, children } = marriages[0]
+    const { spouse, children, spouseOwnChildren } = marriages[0]
     const exSpouse = spouse?.external ? spouse : null
     const mainSpouse = spouse && !spouse.external ? spouse : null
     return (
       <div style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
-        <div style={{display:'flex',alignItems:'center',gap:0}}>
-          {exSpouse&&<><MiniCard person={exSpouse} onSelect={onSelect}/><div style={{width:20,height:2,borderTop:'2px dashed #94a3b8',margin:'0 2px'}}/></>}
-          <MiniCard person={person} onSelect={onSelect}/>
-          {mainSpouse&&<><div style={{width:20,height:2,background:'#94a3b8',margin:'0 2px'}}/><MiniCard person={mainSpouse} onSelect={onSelect}/></>}
-        </div>
-        {children.length>0&&(
-          <><div style={{width:2,height:18,background:'#cbd5e1'}}/>
-          <div style={{display:'flex',gap:12,borderTop:'2px solid #cbd5e1'}}>
-            {children.map(child=>(
-              <div key={child.id} style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
-                <div style={{width:2,height:16,background:'#cbd5e1'}}/>
-                <TreeNode person={child} members={members} onSelect={onSelect}/>
+        <div style={{display:'flex',alignItems:'flex-start',gap:4}}>
+          {/* Ex-spouse on the left with their own children below */}
+          {exSpouse && (
+            <div style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
+              <div style={{display:'flex',alignItems:'center',gap:0}}>
+                <MiniCard person={exSpouse} onSelect={onSelect}/>
+                <div style={{width:20,height:2,borderTop:'2px dashed #94a3b8',margin:'0 2px'}}/>
+                <MiniCard person={person} onSelect={onSelect}/>
               </div>
-            ))}
-          </div></>
-        )}
+              {spouseOwnChildren.length>0&&(
+                <><div style={{width:2,height:14,background:'#e2e8f0'}}/>
+                <div style={{display:'flex',gap:6,borderTop:'2px dashed #e2e8f0'}}>
+                  {spouseOwnChildren.map(c=>(
+                    <div key={c.id} style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
+                      <div style={{width:2,height:12,background:'#e2e8f0'}}/>
+                      <TreeNode person={c} members={members} onSelect={onSelect}/>
+                    </div>
+                  ))}
+                </div></>
+              )}
+            </div>
+          )}
+          {/* Person alone if no ex-spouse */}
+          {!exSpouse && <MiniCard person={person} onSelect={onSelect}/>}
+          {/* Main spouse on the right */}
+          {mainSpouse && (
+            <div style={{display:'flex',alignItems:'center',gap:0}}>
+              <div style={{width:20,height:2,background:'#94a3b8',margin:'0 2px'}}/>
+              <MiniCard person={mainSpouse} onSelect={onSelect}/>
+            </div>
+          )}
+        </div>
+        <ChildrenRow children={children} members={members} onSelect={onSelect}/>
       </div>
     )
   }
 
   // Multiple marriages:
-  // [Spouse1]---[Person]---[Spouse2]
-  //     |                      |
-  // [kids1...]            [kids2...]
+  // marriages[0] = oldest (left side): [Spouse0]---[Person] + shared children + spouse own children
+  // marriages[1+] = newer (right side): ---[Spouse1] + shared children + spouse own children
   return (
     <div style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
-      <div style={{display:'flex',alignItems:'flex-start',gap:4}}>
+      <div style={{display:'flex',alignItems:'flex-start',gap:0}}>
         {marriages.map((marriage, mi) => {
-          const { spouse, children } = marriage
+          const { spouse, children, spouseOwnChildren } = marriage
+          const isFirst = mi === 0
           return (
-            <div key={mi} style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
+            <div key={mi} style={{display:'flex',flexDirection:'column',alignItems:'center',minWidth:0}}>
+              {/* Couple row */}
               <div style={{display:'flex',alignItems:'center',gap:0}}>
-                {mi===0 && spouse && <><MiniCard person={spouse} onSelect={onSelect}/><div style={{width:16,height:2,borderTop:'2px dashed #94a3b8',margin:'0 2px'}}/></>}
-                {mi===0 && <MiniCard person={person} onSelect={onSelect}/>}
-                {mi>0 && spouse && <><div style={{width:16,height:2,borderTop:'2px dashed #94a3b8',margin:'0 2px'}}/><MiniCard person={spouse} onSelect={onSelect}/></>}
+                {isFirst && spouse && <>
+                  <MiniCard person={spouse} onSelect={onSelect}/>
+                  <div style={{width:16,height:2,borderTop:'2px dashed #94a3b8',margin:'0 2px'}}/>
+                </>}
+                {isFirst && <MiniCard person={person} onSelect={onSelect}/>}
+                {!isFirst && spouse && <>
+                  <div style={{width:16,height:2,borderTop:'2px dashed #94a3b8',margin:'0 2px'}}/>
+                  <MiniCard person={spouse} onSelect={onSelect}/>
+                </>}
               </div>
+              {/* Shared children of this marriage */}
               {children.length>0&&(
                 <><div style={{width:2,height:18,background:'#cbd5e1'}}/>
                 <div style={{display:'flex',gap:8,borderTop:'2px solid #cbd5e1'}}>
@@ -179,6 +231,18 @@ function TreeNode({person,members,onSelect}:{person:Member;members:Member[];onSe
                   ))}
                 </div></>
               )}
+              {/* Spouse's own children (not shared with person) */}
+              {spouseOwnChildren.length>0&&(
+                <><div style={{width:2,height:14,background:'#e2e8f0'}}/>
+                <div style={{display:'flex',gap:6,borderTop:'2px dashed #e2e8f0'}}>
+                  {spouseOwnChildren.map(c=>(
+                    <div key={c.id} style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
+                      <div style={{width:2,height:12,background:'#e2e8f0'}}/>
+                      <TreeNode person={c} members={members} onSelect={onSelect}/>
+                    </div>
+                  ))}
+                </div></>
+              )}
             </div>
           )
         })}
@@ -186,6 +250,7 @@ function TreeNode({person,members,onSelect}:{person:Member;members:Member[];onSe
     </div>
   )
 }
+
 
 function BirthdayView({members,onSelect}:{members:Member[];onSelect:(p:Member)=>void}){
   const [sortBy,setSortBy]=useState<'date'|'name'>('date')
