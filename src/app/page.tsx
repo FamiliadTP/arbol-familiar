@@ -4,7 +4,7 @@ import { supabase, Member, PendingEdit } from '../lib/supabase'
 import { fullName, calcAge, fmtDate, monthNames } from '../lib/utils'
 
 const SAMPLE_MEMBERS: Omit<Member, 'created_at'>[] = [
-  { id:'g1m1', name:'José', surname1:'García', surname2:'López', born:'1920-03-15', died:'1995-08-20', gender:'M', generation:1, spouse_id:'g1f1', children_ids:['g2m1','g2f1'], external:false, email:null, bio_birthplace:'Sevilla, España', bio_education:'Primaria', bio_occupation:'Agricultor', bio_notes:'Fundador de la familia en Chile.' },
+  { id:'g1m1', name:'José', surname1:'García', surname2:'López', born:'1920-03-15', died:'1995-08-20', gender:'M', generation:1, spouse_id:'g1f1', children_ids:['g2m1','g2f1'], external:false, email:null, bio_birthplace:'Sevilla, España', bio_education:'Primaria', bio_occupation:'Agricultor', bio_notes:null },
   { id:'g1f1', name:'Carmen', surname1:'Ruiz', surname2:'Mora', born:'1923-07-04', died:'2001-01-12', gender:'F', generation:1, spouse_id:'g1m1', children_ids:['g2m1','g2f1'], external:false, email:null, bio_birthplace:'Málaga, España', bio_education:'Primaria', bio_occupation:'Ama de casa', bio_notes:null },
   { id:'g2m1', name:'Antonio', surname1:'García', surname2:'Ruiz', born:'1950-06-22', died:null, gender:'M', generation:2, spouse_id:'g2f1', children_ids:['g3m1','g3f1'], external:false, email:'antonio@email.com', bio_birthplace:'Santiago, Chile', bio_education:'Universidad', bio_occupation:'Ingeniero', bio_notes:null },
   { id:'g2f1', name:'Elena', surname1:'Torres', surname2:'Martínez', born:'1953-09-10', died:null, gender:'F', generation:2, spouse_id:'g2m1', children_ids:['g3m1','g3f1'], external:false, email:'elena@email.com', bio_birthplace:'Valparaíso, Chile', bio_education:'Universidad', bio_occupation:'Profesora', bio_notes:null },
@@ -26,6 +26,15 @@ function PersonCard({ person, members, onClose, onEdit, isAdmin }: { person:Memb
   const spouse = members.find(m=>m.id===person.spouse_id)
   const children = members.filter(m=>person.children_ids?.includes(m.id))
   const parents = members.filter(m=>m.children_ids?.includes(person.id))
+  // Parse previous marriages for display
+  let prevMarriages: Array<{spouse_id:string|null,children_ids:string[]}> = []
+  let bioText: string|null = person.bio_notes
+  if (person.bio_notes) {
+    try {
+      const parsed = JSON.parse(person.bio_notes)
+      if (Array.isArray(parsed)) { prevMarriages = parsed; bioText = null }
+    } catch {}
+  }
   return (
     <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.55)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:20}} onClick={onClose}>
       <div style={{background:'#fff',borderRadius:16,padding:24,maxWidth:420,width:'100%',boxShadow:'0 20px 60px rgba(0,0,0,0.3)',position:'relative',maxHeight:'90vh',overflowY:'auto'}} onClick={e=>e.stopPropagation()}>
@@ -39,14 +48,25 @@ function PersonCard({ person, members, onClose, onEdit, isAdmin }: { person:Memb
           </div>
         </div>
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:14}}>
-          {[['Nacimiento',fmtDate(person.born)],['Edad',`${calcAge(person.born,person.died)} años`],person.died?['Fallecimiento',fmtDate(person.died)]:null,spouse?['Cónyuge',fullName(spouse)]:null,person.bio_birthplace?['Lugar de nacimiento',person.bio_birthplace]:null,person.bio_occupation?['Ocupación',person.bio_occupation]:null].filter(Boolean).map(([l,v])=>(
+          {[['Nacimiento',fmtDate(person.born)],['Edad',`${calcAge(person.born,person.died)} años`],person.died?['Fallecimiento',fmtDate(person.died)]:null,spouse?['Cónyuge actual',fullName(spouse)]:null,person.bio_birthplace?['Lugar de nacimiento',person.bio_birthplace]:null,person.bio_occupation?['Ocupación',person.bio_occupation]:null].filter(Boolean).map(([l,v])=>(
             <div key={l as string} style={{background:'#f8fafc',borderRadius:8,padding:'8px 10px'}}>
               <div style={{fontSize:10,color:'#94a3b8',textTransform:'uppercase',letterSpacing:1}}>{l}</div>
               <div style={{fontSize:13,fontWeight:600,color:'#1e293b',marginTop:2}}>{v}</div>
             </div>
           ))}
         </div>
-        {person.bio_notes&&<div style={{background:'#faf5ff',borderRadius:8,padding:'10px 12px',fontSize:13,color:'#4c1d95',marginBottom:14,fontStyle:'italic'}}>"{person.bio_notes}"</div>}
+        {prevMarriages.length>0&&<div style={{marginBottom:12}}>
+          {prevMarriages.map((pm,i)=>{
+            const pmSpouse=members.find(m=>m.id===pm.spouse_id)
+            const pmChildren=members.filter(m=>pm.children_ids.includes(m.id))
+            return <div key={i} style={{background:'#f8fafc',borderRadius:8,padding:'8px 10px',marginBottom:6}}>
+              <div style={{fontSize:10,color:'#94a3b8',textTransform:'uppercase',letterSpacing:1}}>1er matrimonio</div>
+              {pmSpouse&&<div style={{fontSize:13,fontWeight:600,color:'#1e293b',marginTop:2}}>{fullName(pmSpouse)}</div>}
+              {pmChildren.length>0&&<div style={{display:'flex',flexWrap:'wrap',gap:4,marginTop:4}}>{pmChildren.map(c=><Chip key={c.id} p={c}/>)}</div>}
+            </div>
+          })}
+        </div>}
+        {bioText&&<div style={{background:'#faf5ff',borderRadius:8,padding:'10px 12px',fontSize:13,color:'#4c1d95',marginBottom:14,fontStyle:'italic'}}>"{bioText}"</div>}
         {parents.length>0&&<div style={{marginBottom:12}}><div style={{fontSize:11,color:'#64748b',fontWeight:700,textTransform:'uppercase',letterSpacing:1,marginBottom:6}}>Padres</div><div style={{display:'flex',flexWrap:'wrap',gap:6}}>{parents.map(p=><Chip key={p.id} p={p}/>)}</div></div>}
         {children.length>0&&<div style={{marginBottom:12}}><div style={{fontSize:11,color:'#64748b',fontWeight:700,textTransform:'uppercase',letterSpacing:1,marginBottom:6}}>Hijos ({children.length})</div><div style={{display:'flex',flexWrap:'wrap',gap:6}}>{children.map(p=><Chip key={p.id} p={p}/>)}</div></div>}
         <button onClick={()=>onEdit(person)} style={{marginTop:4,width:'100%',padding:'10px',background:'#1e293b',color:'#fff',border:'none',borderRadius:8,cursor:'pointer',fontSize:14,fontWeight:600}}>
@@ -75,28 +95,94 @@ function MiniCard({person,onSelect}:{person:Member;onSelect:(p:Member)=>void}){
     </div>
   )
 }
+
+function getMarriages(person: Member, members: Member[]): Array<{spouse: Member|null, children: Member[]}> {
+  const allChildren = members.filter(m => person.children_ids?.includes(m.id))
+  const currentSpouse = members.find(m => m.id === person.spouse_id) ?? null
+  let prevMarriages: Array<{spouse_id: string|null, children_ids: string[]}> = []
+  if (person.bio_notes) {
+    try {
+      const parsed = JSON.parse(person.bio_notes)
+      if (Array.isArray(parsed)) prevMarriages = parsed
+    } catch {}
+  }
+  if (prevMarriages.length === 0) {
+    return [{ spouse: currentSpouse, children: allChildren }]
+  }
+  const usedChildIds = new Set<string>()
+  const result: Array<{spouse: Member|null, children: Member[]}> = []
+  for (const pm of prevMarriages) {
+    const spouse = members.find(m => m.id === pm.spouse_id) ?? null
+    const children = members.filter(m => pm.children_ids.includes(m.id))
+    children.forEach(c => usedChildIds.add(c.id))
+    result.push({ spouse, children })
+  }
+  const currentChildren = allChildren.filter(c => !usedChildIds.has(c.id))
+  result.push({ spouse: currentSpouse, children: currentChildren })
+  return result
+}
+
 function TreeNode({person,members,onSelect}:{person:Member;members:Member[];onSelect:(p:Member)=>void}){
-  const children=members.filter(m=>person.children_ids?.includes(m.id))
-  const exSpouse=members.find(m=>m.id===person.spouse_id&&m.external)
-  const mainSpouse=members.find(m=>m.id===person.spouse_id&&!m.external)
+  const marriages = getMarriages(person, members)
+  const isMulti = marriages.length > 1
+
+  if (!isMulti) {
+    const { spouse, children } = marriages[0]
+    const exSpouse = spouse?.external ? spouse : null
+    const mainSpouse = spouse && !spouse.external ? spouse : null
+    return (
+      <div style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
+        <div style={{display:'flex',alignItems:'center',gap:0}}>
+          {exSpouse&&<><MiniCard person={exSpouse} onSelect={onSelect}/><div style={{width:20,height:2,borderTop:'2px dashed #94a3b8',margin:'0 2px'}}/></>}
+          <MiniCard person={person} onSelect={onSelect}/>
+          {mainSpouse&&<><div style={{width:20,height:2,background:'#94a3b8',margin:'0 2px'}}/><MiniCard person={mainSpouse} onSelect={onSelect}/></>}
+        </div>
+        {children.length>0&&(
+          <><div style={{width:2,height:18,background:'#cbd5e1'}}/>
+          <div style={{display:'flex',gap:12,borderTop:'2px solid #cbd5e1'}}>
+            {children.map(child=>(
+              <div key={child.id} style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
+                <div style={{width:2,height:16,background:'#cbd5e1'}}/>
+                <TreeNode person={child} members={members} onSelect={onSelect}/>
+              </div>
+            ))}
+          </div></>
+        )}
+      </div>
+    )
+  }
+
+  // Multiple marriages:
+  // [Spouse1]---[Person]---[Spouse2]
+  //     |                      |
+  // [kids1...]            [kids2...]
   return (
     <div style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
-      <div style={{display:'flex',alignItems:'center',gap:0}}>
-        {exSpouse&&<><MiniCard person={exSpouse} onSelect={onSelect}/><div style={{width:20,height:2,borderTop:'2px dashed #94a3b8',margin:'0 2px'}}/></>}
-        <MiniCard person={person} onSelect={onSelect}/>
-        {mainSpouse&&<><div style={{width:20,height:2,background:'#94a3b8',margin:'0 2px'}}/><MiniCard person={mainSpouse} onSelect={onSelect}/></>}
-      </div>
-      {children.length>0&&(
-        <><div style={{width:2,height:18,background:'#cbd5e1'}}/>
-        <div style={{display:'flex',gap:12,borderTop:'2px solid #cbd5e1'}}>
-          {children.map(child=>(
-            <div key={child.id} style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
-              <div style={{width:2,height:16,background:'#cbd5e1'}}/>
-              <TreeNode person={child} members={members} onSelect={onSelect}/>
+      <div style={{display:'flex',alignItems:'flex-start',gap:4}}>
+        {marriages.map((marriage, mi) => {
+          const { spouse, children } = marriage
+          return (
+            <div key={mi} style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
+              <div style={{display:'flex',alignItems:'center',gap:0}}>
+                {mi===0 && spouse && <><MiniCard person={spouse} onSelect={onSelect}/><div style={{width:16,height:2,borderTop:'2px dashed #94a3b8',margin:'0 2px'}}/></>}
+                {mi===0 && <MiniCard person={person} onSelect={onSelect}/>}
+                {mi>0 && spouse && <><div style={{width:16,height:2,borderTop:'2px dashed #94a3b8',margin:'0 2px'}}/><MiniCard person={spouse} onSelect={onSelect}/></>}
+              </div>
+              {children.length>0&&(
+                <><div style={{width:2,height:18,background:'#cbd5e1'}}/>
+                <div style={{display:'flex',gap:8,borderTop:'2px solid #cbd5e1'}}>
+                  {children.map(child=>(
+                    <div key={child.id} style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
+                      <div style={{width:2,height:16,background:'#cbd5e1'}}/>
+                      <TreeNode person={child} members={members} onSelect={onSelect}/>
+                    </div>
+                  ))}
+                </div></>
+              )}
             </div>
-          ))}
-        </div></>
-      )}
+          )
+        })}
+      </div>
     </div>
   )
 }
@@ -271,7 +357,6 @@ function PendingView({pending,onApprove,onReject}:{pending:PendingEdit[];onAppro
   </div>
 }
 
-// ── ADMIN PANEL ───────────────────────────────────────────────────────────────
 function AdminPanel({ onChangePassword, onImportExcel, onAddMember, importing }: {
   onChangePassword: (oldPass: string, newPass: string) => void
   onImportExcel: (file: File) => void
@@ -311,7 +396,7 @@ function AdminPanel({ onChangePassword, onImportExcel, onAddMember, importing }:
           </button>
           <div style={{background:'#fff',borderRadius:10,padding:14,border:'2px dashed #cbd5e1'}}>
             <div style={{fontWeight:700,fontSize:13,marginBottom:6}}>📊 Cargar datos desde Excel</div>
-            <div style={{fontSize:12,color:'#64748b',marginBottom:10}}>Sube el archivo Excel con los datos de tu familia. Usa la plantilla descargada desde la app.</div>
+            <div style={{fontSize:12,color:'#64748b',marginBottom:10}}>Sube el archivo Excel con los datos de tu familia.</div>
             <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" style={{display:'none'}} onChange={e=>e.target.files?.[0]&&onImportExcel(e.target.files[0])}/>
             <button onClick={()=>fileRef.current?.click()} disabled={importing} style={{padding:'10px 20px',background:importing?'#94a3b8':'#2563eb',color:'#fff',border:'none',borderRadius:8,cursor:importing?'not-allowed':'pointer',fontWeight:700,fontSize:13}}>
               {importing?'⏳ Importando...':'📁 Seleccionar archivo Excel'}
@@ -321,7 +406,7 @@ function AdminPanel({ onChangePassword, onImportExcel, onAddMember, importing }:
       )}
       {tab==='password'&&(
         <div style={{display:'flex',flexDirection:'column',gap:10,maxWidth:320}}>
-          <div style={{fontSize:13,color:'#64748b',marginBottom:4}}>Cambia la contraseña de administrador. Esta se guarda solo en tu navegador.</div>
+          <div style={{fontSize:13,color:'#64748b',marginBottom:4}}>Cambia la contraseña de administrador.</div>
           {[['Contraseña actual',oldPass,setOldPass],['Nueva contraseña',newPass,setNewPass],['Confirmar nueva contraseña',newPass2,setNewPass2]].map(([l,v,fn])=>(
             <label key={l as string} style={{display:'flex',flexDirection:'column',gap:4,fontSize:12,color:'#64748b',fontWeight:600}}>
               {l as string}
@@ -330,14 +415,13 @@ function AdminPanel({ onChangePassword, onImportExcel, onAddMember, importing }:
           ))}
           {passError&&<div style={{fontSize:12,color:'#dc2626'}}>{passError}</div>}
           <button onClick={handleChangePass} style={{padding:'10px',background:'#1e293b',color:'#fff',border:'none',borderRadius:8,cursor:'pointer',fontWeight:700,fontSize:13,marginTop:4}}>💾 Cambiar contraseña</button>
-          <div style={{fontSize:11,color:'#94a3b8',marginTop:4}}>⚠️ Nota: la contraseña se guarda en el navegador. Todos los admins deben usar la misma.</div>
+          <div style={{fontSize:11,color:'#94a3b8',marginTop:4}}>⚠️ La contraseña se guarda en el navegador.</div>
         </div>
       )}
     </div>
   )
 }
 
-// ── NEW MEMBER MODAL ──────────────────────────────────────────────────────────
 function NewMemberModal({onClose,onSave}:{onClose:()=>void;onSave:(m:Member)=>void}){
   const [form,setForm]=useState<Partial<Member>>({gender:'M',generation:3,external:false,children_ids:[]})
   const set=(k:keyof Member,v:any)=>setForm(f=>({...f,[k]:v}))
@@ -398,7 +482,6 @@ function NewMemberModal({onClose,onSave}:{onClose:()=>void;onSave:(m:Member)=>vo
   )
 }
 
-// ── MAIN ──────────────────────────────────────────────────────────────────────
 const ADMIN_PASS_KEY = 'arbol_admin_pass'
 const getStoredPass = () => typeof window !== 'undefined' ? (localStorage.getItem(ADMIN_PASS_KEY)||'familia2024') : 'familia2024'
 
@@ -453,7 +536,6 @@ export default function Home() {
       const wb=XLSX.read(buf)
       const ws=wb.Sheets[wb.SheetNames[0]]
       const rows:any[]=XLSX.utils.sheet_to_json(ws,{defval:''})
-      // Skip row 2 (instruction row) if it has "Obligatorio" text
       const dataRows=rows.filter((r:any)=>r.id&&r.id!=='id'&&!String(r.id).includes('Obligatorio')&&!String(r.id).includes('Opcional'))
       const mapped:Member[]=dataRows.map((r:any)=>({
         id:String(r.id||'').trim(),
