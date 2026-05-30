@@ -82,15 +82,18 @@ function Chip({p}:{p:Member}){
 
 function MiniCard({person,onSelect}:{person:Member;onSelect:(p:Member)=>void}){
   const isBlood = !person.external
+  // Blood relatives: prominent blue/pink with golden border
+  // Political relatives: subtle grey/beige with dashed border
   const bg = isBlood
     ? (person.gender==='M' ? '#eff6ff' : '#fdf2f8')
-    : '#fffbeb'
+    : '#fafafa'
   const border = isBlood
-    ? (person.gender==='M' ? '#93c5fd' : '#f9a8d4')
-    : '#f59e0b'
-  const borderWidth = isBlood ? '2px' : '3px'
+    ? '#f59e0b'
+    : (person.gender==='M' ? '#cbd5e1' : '#f0abcb')
+  const borderStyle = isBlood ? 'solid' : 'dashed'
+  const borderWidth = isBlood ? '3px' : '2px'
   return (
-    <div onClick={()=>onSelect(person)} style={{background:bg,border:`${borderWidth} solid ${border}`,borderRadius:12,padding:'10px 12px',cursor:'pointer',minWidth:100,textAlign:'center',opacity:person.died?0.75:1,boxShadow:isBlood?'0 2px 8px rgba(0,0,0,0.07)':'0 2px 8px rgba(245,158,11,0.2)',transition:'transform 0.15s',position:'relative'}}
+    <div onClick={()=>onSelect(person)} style={{background:bg,border:`${borderWidth} ${borderStyle} ${border}`,borderRadius:12,padding:'10px 12px',cursor:'pointer',minWidth:100,textAlign:'center',opacity:person.died?0.75:1,boxShadow:isBlood?'0 2px 8px rgba(245,158,11,0.15)':'0 1px 4px rgba(0,0,0,0.06)',transition:'transform 0.15s',position:'relative'}}
       onMouseEnter={e=>(e.currentTarget.style.transform='translateY(-2px)')}
       onMouseLeave={e=>(e.currentTarget.style.transform='')}>
       {person.died&&<div style={{position:'absolute',top:-6,right:-6,fontSize:11,background:'#64748b',color:'#fff',borderRadius:'50%',width:18,height:18,display:'flex',alignItems:'center',justifyContent:'center'}}>†</div>}
@@ -112,7 +115,10 @@ function getMarriages(person: Member, members: Member[]): Array<{spouse: Member|
   let prevMarriages: Array<{spouse_id: string|null, children_ids: string[]}> = []
   if (person.bio_notes) {
     try {
-      const parsed = JSON.parse(person.bio_notes)
+      // bio_notes can be a jsonb object (already parsed) or a string
+      const parsed = Array.isArray(person.bio_notes)
+        ? person.bio_notes
+        : (typeof person.bio_notes === 'string' ? JSON.parse(person.bio_notes) : person.bio_notes)
       if (Array.isArray(parsed)) prevMarriages = parsed
     } catch {}
   }
