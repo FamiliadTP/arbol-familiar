@@ -262,20 +262,25 @@ function TreeNode({person,members,onSelect}:{person:Member;members:Member[];onSe
 
   return (
     <div style={{display:'flex',alignItems:'flex-start',gap:0}}>
-      {/* LEFT: previous spouse column */}
-      {prev.spouse&&(
-        <>
-          <div style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
-            <MiniCard person={prev.spouse} onSelect={onSelect}/>
-            <ChildGroup children={prev.spouseOwnChildren} members={members} onSelect={onSelect} political={true}/>
-          </div>
-          <div style={hline(16)}/>
-        </>
-      )}
 
-      {/* CENTER: person with prev marriage shared children */}
+      {/* LEFT BLOCK: [PrevSpouse]---[Person] as a couple, with shared children below */}
       <div style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
-        <MiniCard person={person} onSelect={onSelect}/>
+        {/* Couple row */}
+        <div style={{display:'flex',alignItems:'flex-start',gap:0}}>
+          {/* Prev spouse column with their own kids */}
+          {prev.spouse&&(
+            <>
+              <div style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
+                <MiniCard person={prev.spouse} onSelect={onSelect}/>
+                <ChildGroup children={prev.spouseOwnChildren} members={members} onSelect={onSelect} political={true}/>
+              </div>
+              <div style={hline(16)}/>
+            </>
+          )}
+          {/* Person card */}
+          <MiniCard person={person} onSelect={onSelect}/>
+        </div>
+        {/* Shared children of prev marriage hang below the couple */}
         <ChildGroup children={prev.children} members={members} onSelect={onSelect}/>
       </div>
 
