@@ -82,18 +82,17 @@ function Chip({p}:{p:Member}){
 
 function MiniCard({person,onSelect}:{person:Member;onSelect:(p:Member)=>void}){
   const isBlood = !person.external
-  // Blood relatives: prominent blue/pink with golden border
-  // Political relatives: subtle grey/beige with dashed border
+  // Blood relatives: blue/pink bg + thick golden border + warm shadow
+  // Political relatives: white/grey bg + thin dashed grey border
   const bg = isBlood
-    ? (person.gender==='M' ? '#eff6ff' : '#fdf2f8')
-    : '#fafafa'
-  const border = isBlood
-    ? '#f59e0b'
-    : (person.gender==='M' ? '#cbd5e1' : '#f0abcb')
+    ? (person.gender==='M' ? '#dbeafe' : '#fce7f3')
+    : (person.gender==='M' ? '#f8fafc' : '#fdf4ff')
+  const border = isBlood ? '#d97706' : '#94a3b8'
   const borderStyle = isBlood ? 'solid' : 'dashed'
-  const borderWidth = isBlood ? '3px' : '2px'
+  const borderWidth = isBlood ? '3px' : '1.5px'
+  const shadow = isBlood ? '0 2px 10px rgba(217,119,6,0.3)' : '0 1px 4px rgba(0,0,0,0.06)'
   return (
-    <div onClick={()=>onSelect(person)} style={{background:bg,border:`${borderWidth} ${borderStyle} ${border}`,borderRadius:12,padding:'10px 12px',cursor:'pointer',minWidth:100,textAlign:'center',opacity:person.died?0.75:1,boxShadow:isBlood?'0 2px 8px rgba(245,158,11,0.15)':'0 1px 4px rgba(0,0,0,0.06)',transition:'transform 0.15s',position:'relative'}}
+    <div onClick={()=>onSelect(person)} style={{background:bg,border:`${borderWidth} ${borderStyle} ${border}`,borderRadius:12,padding:'10px 12px',cursor:'pointer',minWidth:100,textAlign:'center',opacity:person.died?0.75:1,boxShadow:shadow,transition:'transform 0.15s',position:'relative'}}
       onMouseEnter={e=>(e.currentTarget.style.transform='translateY(-2px)')}
       onMouseLeave={e=>(e.currentTarget.style.transform='')}>
       {person.died&&<div style={{position:'absolute',top:-6,right:-6,fontSize:11,background:'#64748b',color:'#fff',borderRadius:'50%',width:18,height:18,display:'flex',alignItems:'center',justifyContent:'center'}}>†</div>}
@@ -260,34 +259,55 @@ function TreeNode({person,members,onSelect}:{person:Member;members:Member[];onSe
   const prevLeft  = prev.spouse && (prev.spouse.gender==='M' || person.gender==='F') ? prev.spouse : person
   const prevRight = prevLeft === person ? prev.spouse : person
 
+  // prevLeft/prevRight: M always left, F always right
+  const prevSpouseIsLeft = prev.spouse
+    ? (prev.spouse.gender==='M' || person.gender==='F')
+    : false
+  const leftCard  = prevSpouseIsLeft ? prev.spouse! : person
+  const rightCard = prevSpouseIsLeft ? person : (prev.spouse ?? null)
+  const spouseCol = prevSpouseIsLeft ? 'left' : 'right'  // which side has prev spouse
+
   return (
     <div style={{display:'flex',alignItems:'flex-start',gap:0}}>
-      {/* LEFT BLOCK: 1st couple + their shared children below */}
-      <div style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
-        <div style={{display:'flex',alignItems:'center',gap:0}}>
-          <MiniCard person={prevLeft!} onSelect={onSelect}/>
-          {prev.spouse&&<><div style={MLINE}/><MiniCard person={prevRight!} onSelect={onSelect}/></>}
-        </div>
-        {/* Prev spouse own kids (e.g. Tere Vial → Mascaró) */}
-        {prev.spouseOwnChildren.length>0&&(
-          <div style={{display:'flex',flexDirection:'column',alignItems: prevLeft===prev.spouse ? 'flex-start' : 'flex-end',width:'100%'}}>
+
+      {/* If prev spouse is on the LEFT: show their column with own kids */}
+      {prev.spouse && prevSpouseIsLeft && (
+        <div style={{display:'flex',alignItems:'flex-start',gap:0}}>
+          <div style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
+            <MiniCard person={prev.spouse} onSelect={onSelect}/>
             <ChildGroup children={prev.spouseOwnChildren} members={members} onSelect={onSelect} lineColor='#e2e8f0'/>
           </div>
-        )}
-        {/* Shared children of 1st marriage */}
+          <div style={{...MLINE,alignSelf:'flex-start',marginTop:30}}/>
+        </div>
+      )}
+
+      {/* CENTER: person column with shared children of prev marriage */}
+      <div style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
+        <MiniCard person={person} onSelect={onSelect}/>
         <ChildGroup children={prev.children} members={members} onSelect={onSelect}/>
       </div>
 
-      {/* RIGHT: current spouse + their children */}
+      {/* If prev spouse is on the RIGHT: show their column with own kids */}
+      {prev.spouse && !prevSpouseIsLeft && (
+        <div style={{display:'flex',alignItems:'flex-start',gap:0}}>
+          <div style={{...MLINE,alignSelf:'flex-start',marginTop:30}}/>
+          <div style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
+            <MiniCard person={prev.spouse} onSelect={onSelect}/>
+            <ChildGroup children={prev.spouseOwnChildren} members={members} onSelect={onSelect} lineColor='#e2e8f0'/>
+          </div>
+        </div>
+      )}
+
+      {/* Current spouse on the RIGHT with their children */}
       {curr.spouse && (
-        <>
+        <div style={{display:'flex',alignItems:'flex-start',gap:0}}>
           <div style={{...MLINE,alignSelf:'flex-start',marginTop:30}}/>
           <div style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
             <MiniCard person={curr.spouse} onSelect={onSelect}/>
             <ChildGroup children={curr.children} members={members} onSelect={onSelect}/>
             <ChildGroup children={curr.spouseOwnChildren} members={members} onSelect={onSelect} lineColor='#e2e8f0'/>
           </div>
-        </>
+        </div>
       )}
     </div>
   )
