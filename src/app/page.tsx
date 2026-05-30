@@ -163,7 +163,7 @@ function ChildrenRow({children, members, onSelect}: {children: Member[], members
 //    Children of each marriage hang below their respective side
 // 4. Spouse with own kids: their kids hang below them with dashed line
 
-const MARRY_LINE = {width:24,height:2,borderTop:'2.5px dashed #f59e0b',flexShrink:0} as const
+const MARRY_LINE = {width:8,height:2,borderTop:'2.5px dashed #f59e0b' as string,flexShrink:0 as number}
 const V_LINE = (h:number,color='#cbd5e1') => ({width:2,height:h,background:color,flexShrink:0})
 
 function HChildren({children,members,onSelect}:{children:Member[],members:Member[],onSelect:(p:Member)=>void}){
@@ -200,12 +200,12 @@ function CoupleRow({left,right,onSelect}:{left:Member|null,right:Member|null,onS
   )
 }
 
-function orderCouple(person:Member, spouse:Member|null):{left:Member,right:Member|null}|{left:null,right:Member} {
-  if(!spouse) return {left:person,right:null}
+function orderCouple(person:Member, spouse:Member|null) {
+  if(!spouse) return {left:person as Member|null, right:null as Member|null}
   // M always left, F always right
-  if(person.gender==='M') return {left:person,right:spouse}
-  if(person.gender==='F') return {left:spouse,right:person}
-  return {left:person,right:spouse}
+  if(person.gender==='M') return {left:person as Member|null, right:spouse as Member|null}
+  if(person.gender==='F') return {left:spouse as Member|null, right:person as Member|null}
+  return {left:person as Member|null, right:spouse as Member|null}
 }
 
 function TreeNode({person,members,onSelect}:{person:Member;members:Member[];onSelect:(p:Member)=>void}){
