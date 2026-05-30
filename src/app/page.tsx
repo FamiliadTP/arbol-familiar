@@ -161,33 +161,53 @@ function ChildrenRow({children, members, onSelect}: {children: Member[], members
 
 
 // ── TREE RENDERING ───────────────────────────────────────────────────────────
+// Design rules:
+// - Blood relatives: golden border, blue/pink background
+// - Political relatives: dashed grey border, white background, star ★
+// - Marriage line: golden dashed horizontal, connects couple cards
+// - Blood child line: solid grey vertical/horizontal
+// - Political child line: dashed golden vertical/horizontal
 
-const MLINE = {width:20,height:2,borderTop:'3px dashed #d97706',flexShrink:0}
-const vline = (h:number, color='#94a3b8') => ({width:2,height:h,background:color,flexShrink:0,alignSelf:'center'})
+const MLINE_STYLE = "3px dashed #d97706"
+const BLOOD_LINE  = "#94a3b8"
+const POLIT_LINE  = "#fbbf24"
 
-// Renders children with: vertical stem → horizontal bar → vertical drops
-function ChildGroup({children,members,onSelect,lineColor='#94a3b8'}:{
-  children:Member[], members:Member[], onSelect:(p:Member)=>void, lineColor?:string
-}) {
+function vline(h:number, color=BLOOD_LINE){
+  return {width:2,height:h,background:color,flexShrink:0} as const
+}
+function hline(w:number, style=MLINE_STYLE){
+  return {width:w,height:0,borderTop:style,flexShrink:0,alignSelf:'center'} as const
+}
+
+// Children hanging below a parent, with horizontal bar and vertical drops
+function ChildGroup({children,members,onSelect,political=false}:{
+  children:Member[], members:Member[], onSelect:(p:Member)=>void, political?:boolean
+}){
   if(!children.length) return null
-  const isBloodLine = lineColor === '#94a3b8'
-  const lineStyle = isBloodLine
-    ? {borderTop:`2.5px solid ${lineColor}`}
-    : {borderTop:`2px dashed ${lineColor}`}
-  const stemStyle = isBloodLine
-    ? vline(18, lineColor)
-    : {...vline(18, lineColor), background:'transparent', borderLeft:`2px dashed ${lineColor}`, width:0}
+  const color = political ? POLIT_LINE : BLOOD_LINE
+  const lineStyle = political ? `2px dashed ${color}` : `2.5px solid ${color}`
   return (
     <div style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
-      <div style={vline(18,lineColor)}/>
-      <div style={{display:'flex',alignItems:'flex-start',...lineStyle,gap:10,padding:'0 6px'}}>
+      <div style={vline(16,color)}/>
+      <div style={{display:'flex',alignItems:'flex-start',borderTop:lineStyle,gap:8,padding:'0 4px'}}>
         {children.map(child=>(
           <div key={child.id} style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
-            <div style={vline(18,lineColor)}/>
+            <div style={vline(16,color)}/>
             <TreeNode person={child} members={members} onSelect={onSelect}/>
           </div>
         ))}
       </div>
+    </div>
+  )
+}
+
+// A couple side by side with marriage line between them
+// M always left, F always right (within the couple)
+function Couple({left,right,onSelect}:{left:Member,right:Member|null,onSelect:(p:Member)=>void}){
+  return (
+    <div style={{display:'flex',alignItems:'center',gap:0}}>
+      <MiniCard person={left} onSelect={onSelect}/>
+      {right&&<><div style={hline(16)}/><MiniCard person={right} onSelect={onSelect}/></>}
     </div>
   )
 }
@@ -197,131 +217,76 @@ function TreeNode({person,members,onSelect}:{person:Member;members:Member[];onSe
 
   // ── SINGLE MARRIAGE ──────────────────────────────────────────────
   if(marriages.length === 1){
-    const {spouse, children, spouseOwnChildren} = marriages[0]
+    const {spouse,children,spouseOwnChildren} = marriages[0]
+    const hasSpouseOwnKids = spouseOwnChildren.length > 0
 
-    // Determine left/right: M always left, F always right
-    const personIsLeft = !spouse || person.gender==='M' || (person.gender==='F' && spouse.gender==='F')
-    const left  = personIsLeft ? person : spouse!
-    const right = personIsLeft ? spouse : person
-
-    // If spouse has own children (e.g. Angélica): show spouse in column with own kids
-    if(spouse && spouseOwnChildren.length > 0){
-      const spouseLeft = !personIsLeft  // spouse on left side
+    // Special: spouse has own children (e.g. Angélica with Convalía)
+    // Show spouse in separate column with own kids, connected to person
+    if(hasSpouseOwnKids && spouse){
+      // Spouse goes LEFT (they have their own kids hanging down)
+      // Person goes RIGHT with shared kids below
       return (
         <div style={{display:'flex',alignItems:'flex-start',gap:0}}>
-          {spouseLeft ? (
-            // Spouse LEFT with own kids, then connector, then person with shared kids
-            <>
-              <div style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
-                <MiniCard person={spouse} onSelect={onSelect}/>
-                <ChildGroup children={spouseOwnChildren} members={members} onSelect={onSelect} lineColor='#fbbf24'/>
-              </div>
-              <div style={{...MLINE,alignSelf:'flex-start',marginTop:30}}/>
-              <div style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
-                <MiniCard person={person} onSelect={onSelect}/>
-                <ChildGroup children={children} members={members} onSelect={onSelect}/>
-              </div>
-            </>
-          ) : (
-            // Person LEFT with shared kids, then connector, then spouse RIGHT with own kids
-            <>
-              <div style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
-                <MiniCard person={person} onSelect={onSelect}/>
-                <ChildGroup children={children} members={members} onSelect={onSelect}/>
-              </div>
-              <div style={{...MLINE,alignSelf:'flex-start',marginTop:30}}/>
-              <div style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
-                <MiniCard person={spouse} onSelect={onSelect}/>
-                <ChildGroup children={spouseOwnChildren} members={members} onSelect={onSelect} lineColor='#fbbf24'/>
-              </div>
-            </>
-          )}
+          <div style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
+            <MiniCard person={spouse} onSelect={onSelect}/>
+            <ChildGroup children={spouseOwnChildren} members={members} onSelect={onSelect} political={true}/>
+          </div>
+          <div style={hline(16)}/>
+          <div style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
+            <MiniCard person={person} onSelect={onSelect}/>
+            <ChildGroup children={children} members={members} onSelect={onSelect}/>
+          </div>
         </div>
       )
     }
 
-    // Normal: couple side by side, shared children below
+    // Normal: couple side by side, M left F right, shared children below
+    const left  = (!spouse || person.gender==='M' || spouse.gender==='M') ? person : spouse
+    const right = left===person ? spouse : person
     return (
       <div style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
-        <div style={{display:'flex',alignItems:'center',gap:0}}>
-          <MiniCard person={left} onSelect={onSelect}/>
-          {right&&<><div style={MLINE}/><MiniCard person={right} onSelect={onSelect}/></>}
-        </div>
+        <Couple left={left} right={right} onSelect={onSelect}/>
         <ChildGroup children={children} members={members} onSelect={onSelect}/>
       </div>
     )
   }
 
   // ── MULTIPLE MARRIAGES ────────────────────────────────────────────
-  // Layout:
-  // [1stSpouse]—[Person]—[2ndSpouse]
-  //      └── prev kids ──┘    └── curr kids ──┘
-  //  (prev kids hang under the 1st couple block)
-  //  (curr kids hang under current spouse)
-  //  (prev/curr spouse own kids hang under their column)
+  // Layout: [PrevSpouse]---[Person]---[CurrSpouse]
+  //           prev own        prev       curr+own
+  //           kids            kids       kids
+  //
+  // Prev spouse ALWAYS LEFT, person CENTER, current spouse ALWAYS RIGHT
   const prev = marriages[0]
   const curr = marriages[marriages.length-1]
 
-  // Determine left/right order for prev couple: M left, F right
-  const prevLeft  = prev.spouse && (prev.spouse.gender==='M' || person.gender==='F') ? prev.spouse : person
-  const prevRight = prevLeft === person ? prev.spouse : person
-
-  // In multi-marriage: prev spouse ALWAYS LEFT, person CENTER, curr spouse ALWAYS RIGHT
-  // (gender L/R order only applies to single marriages)
-  const prevSpouseIsLeft = true  // prev spouse always on left in multi-marriage
-  const leftCard  = prevSpouseIsLeft ? prev.spouse! : person
-  const rightCard = prevSpouseIsLeft ? person : (prev.spouse ?? null)
-  const spouseCol = prevSpouseIsLeft ? 'left' : 'right'  // which side has prev spouse
-
-  // Couple layout: always M left, F right
-  // prev couple: [PrevSpouse?---Person---?PrevSpouse] depending on genders
-  // curr spouse: always to the right of the whole prev block
-
   return (
     <div style={{display:'flex',alignItems:'flex-start',gap:0}}>
-
-      {/* PREV SPOUSE column on LEFT (only if M or person is F) */}
-      {prev.spouse && prevSpouseIsLeft && (
+      {/* LEFT: previous spouse column */}
+      {prev.spouse&&(
         <>
           <div style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
             <MiniCard person={prev.spouse} onSelect={onSelect}/>
-            {prev.spouseOwnChildren.length>0&&(
-              <ChildGroup children={prev.spouseOwnChildren} members={members} onSelect={onSelect} lineColor='#fbbf24'/>
-            )}
+            <ChildGroup children={prev.spouseOwnChildren} members={members} onSelect={onSelect} political={true}/>
           </div>
-          <div style={{...MLINE,alignSelf:'flex-start',marginTop:30}}/>
+          <div style={hline(16)}/>
         </>
       )}
 
-      {/* PERSON column (center/left anchor) */}
+      {/* CENTER: person with prev marriage shared children */}
       <div style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
         <MiniCard person={person} onSelect={onSelect}/>
         <ChildGroup children={prev.children} members={members} onSelect={onSelect}/>
       </div>
 
-      {/* PREV SPOUSE column on RIGHT (only if F and person is M) */}
-      {prev.spouse && !prevSpouseIsLeft && (
+      {/* RIGHT: current spouse column */}
+      {curr.spouse&&(
         <>
-          <div style={{...MLINE,alignSelf:'flex-start',marginTop:30}}/>
-          <div style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
-            <MiniCard person={prev.spouse} onSelect={onSelect}/>
-            {prev.spouseOwnChildren.length>0&&(
-              <ChildGroup children={prev.spouseOwnChildren} members={members} onSelect={onSelect} lineColor='#fbbf24'/>
-            )}
-          </div>
-        </>
-      )}
-
-      {/* CURRENT SPOUSE always on the RIGHT */}
-      {curr.spouse && (
-        <>
-          <div style={{...MLINE,alignSelf:'flex-start',marginTop:30}}/>
+          <div style={hline(16)}/>
           <div style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
             <MiniCard person={curr.spouse} onSelect={onSelect}/>
             <ChildGroup children={curr.children} members={members} onSelect={onSelect}/>
-            {curr.spouseOwnChildren.length>0&&(
-              <ChildGroup children={curr.spouseOwnChildren} members={members} onSelect={onSelect} lineColor='#fbbf24'/>
-            )}
+            <ChildGroup children={curr.spouseOwnChildren} members={members} onSelect={onSelect} political={true}/>
           </div>
         </>
       )}
@@ -753,7 +718,7 @@ export default function Home() {
             {coupleRoots.map(r=><TreeNode key={r.id} person={r} members={members} onSelect={setSelected}/>)}
           </div>
           <div style={{textAlign:'center',marginTop:12,fontSize:11,color:'#94a3b8'}}>
-  <span style={{color:'#f59e0b',fontWeight:700}}>★ borde dorado</span> = familiar político &nbsp;·&nbsp; † fallecido &nbsp;·&nbsp; <span style={{color:'#f59e0b'}}>— — —</span> matrimonio &nbsp;·&nbsp; — hijo/a &nbsp;·&nbsp; Toca para ver detalles
+  <span style={{color:'#d97706',fontWeight:700}}>borde dorado</span> = línea de sangre &nbsp;·&nbsp; <span style={{fontWeight:700}}>★</span> = familiar político &nbsp;·&nbsp; † fallecido &nbsp;·&nbsp; <span style={{color:'#d97706'}}>— — —</span> matrimonio &nbsp;·&nbsp; Toca para ver detalles
 </div>
         </div>}
         {view==='list'&&<ListView members={members} onSelect={setSelected}/>}
