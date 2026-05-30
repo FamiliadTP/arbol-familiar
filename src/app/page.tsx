@@ -163,17 +163,24 @@ function ChildrenRow({children, members, onSelect}: {children: Member[], members
 // ── TREE RENDERING ───────────────────────────────────────────────────────────
 
 const MLINE = {width:20,height:2,borderTop:'3px dashed #d97706',flexShrink:0}
-const vline = (h:number, color='#cbd5e1') => ({width:2,height:h,background:color,flexShrink:0,alignSelf:'center'})
+const vline = (h:number, color='#94a3b8') => ({width:2,height:h,background:color,flexShrink:0,alignSelf:'center'})
 
 // Renders children with: vertical stem → horizontal bar → vertical drops
-function ChildGroup({children,members,onSelect,lineColor='#cbd5e1'}:{
+function ChildGroup({children,members,onSelect,lineColor='#94a3b8'}:{
   children:Member[], members:Member[], onSelect:(p:Member)=>void, lineColor?:string
 }) {
   if(!children.length) return null
+  const isBloodLine = lineColor === '#94a3b8'
+  const lineStyle = isBloodLine
+    ? {borderTop:`2.5px solid ${lineColor}`}
+    : {borderTop:`2px dashed ${lineColor}`}
+  const stemStyle = isBloodLine
+    ? vline(18, lineColor)
+    : {...vline(18, lineColor), background:'transparent', borderLeft:`2px dashed ${lineColor}`, width:0}
   return (
     <div style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
       <div style={vline(18,lineColor)}/>
-      <div style={{display:'flex',alignItems:'flex-start',borderTop:`2px solid ${lineColor}`,gap:10,padding:'0 6px'}}>
+      <div style={{display:'flex',alignItems:'flex-start',...lineStyle,gap:10,padding:'0 6px'}}>
         {children.map(child=>(
           <div key={child.id} style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
             <div style={vline(18,lineColor)}/>
@@ -207,7 +214,7 @@ function TreeNode({person,members,onSelect}:{person:Member;members:Member[];onSe
             <>
               <div style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
                 <MiniCard person={spouse} onSelect={onSelect}/>
-                <ChildGroup children={spouseOwnChildren} members={members} onSelect={onSelect} lineColor='#e2e8f0'/>
+                <ChildGroup children={spouseOwnChildren} members={members} onSelect={onSelect} lineColor='#fbbf24'/>
               </div>
               <div style={{...MLINE,alignSelf:'flex-start',marginTop:30}}/>
               <div style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
@@ -225,7 +232,7 @@ function TreeNode({person,members,onSelect}:{person:Member;members:Member[];onSe
               <div style={{...MLINE,alignSelf:'flex-start',marginTop:30}}/>
               <div style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
                 <MiniCard person={spouse} onSelect={onSelect}/>
-                <ChildGroup children={spouseOwnChildren} members={members} onSelect={onSelect} lineColor='#e2e8f0'/>
+                <ChildGroup children={spouseOwnChildren} members={members} onSelect={onSelect} lineColor='#fbbf24'/>
               </div>
             </>
           )}
@@ -259,58 +266,64 @@ function TreeNode({person,members,onSelect}:{person:Member;members:Member[];onSe
   const prevLeft  = prev.spouse && (prev.spouse.gender==='M' || person.gender==='F') ? prev.spouse : person
   const prevRight = prevLeft === person ? prev.spouse : person
 
-  // prevLeft/prevRight: M always left, F always right
-  const prevSpouseIsLeft = prev.spouse
-    ? (prev.spouse.gender==='M' || person.gender==='F')
-    : false
+  // In multi-marriage: prev spouse ALWAYS LEFT, person CENTER, curr spouse ALWAYS RIGHT
+  // (gender L/R order only applies to single marriages)
+  const prevSpouseIsLeft = true  // prev spouse always on left in multi-marriage
   const leftCard  = prevSpouseIsLeft ? prev.spouse! : person
   const rightCard = prevSpouseIsLeft ? person : (prev.spouse ?? null)
   const spouseCol = prevSpouseIsLeft ? 'left' : 'right'  // which side has prev spouse
 
-  // Build the prev couple block: [PrevSpouse]---[Person] or [Person]---[PrevSpouse]
-  // Then append current spouse to the right: [prevBlock]---[CurrSpouse]
-  const prevCoupleLeft  = prevSpouseIsLeft ? prev.spouse! : person
-  const prevCoupleRight = prevSpouseIsLeft ? person : prev.spouse
+  // Couple layout: always M left, F right
+  // prev couple: [PrevSpouse?---Person---?PrevSpouse] depending on genders
+  // curr spouse: always to the right of the whole prev block
 
   return (
     <div style={{display:'flex',alignItems:'flex-start',gap:0}}>
 
-      {/* PREV COUPLE BLOCK: both cards side by side, shared children below center */}
-      <div style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
-        <div style={{display:'flex',alignItems:'flex-start',gap:0}}>
-          {/* Left card column (with own kids if it's the prev spouse) */}
+      {/* PREV SPOUSE column on LEFT (only if M or person is F) */}
+      {prev.spouse && prevSpouseIsLeft && (
+        <>
           <div style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
-            <MiniCard person={prevCoupleLeft} onSelect={onSelect}/>
-            {prevSpouseIsLeft && prev.spouseOwnChildren.length>0 && (
-              <ChildGroup children={prev.spouseOwnChildren} members={members} onSelect={onSelect} lineColor='#e2e8f0'/>
+            <MiniCard person={prev.spouse} onSelect={onSelect}/>
+            {prev.spouseOwnChildren.length>0&&(
+              <ChildGroup children={prev.spouseOwnChildren} members={members} onSelect={onSelect} lineColor='#fbbf24'/>
             )}
           </div>
-          {/* Marriage connector */}
-          {prev.spouse && <div style={{...MLINE,alignSelf:'flex-start',marginTop:30}}/>}
-          {/* Right card column (with own kids if it's the prev spouse) */}
-          {prev.spouse && prevCoupleRight && (
-            <div style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
-              <MiniCard person={prevCoupleRight} onSelect={onSelect}/>
-              {!prevSpouseIsLeft && prev.spouseOwnChildren.length>0 && (
-                <ChildGroup children={prev.spouseOwnChildren} members={members} onSelect={onSelect} lineColor='#e2e8f0'/>
-              )}
-            </div>
-          )}
-        </div>
-        {/* Shared children of prev marriage hang below the couple */}
+          <div style={{...MLINE,alignSelf:'flex-start',marginTop:30}}/>
+        </>
+      )}
+
+      {/* PERSON column (center/left anchor) */}
+      <div style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
+        <MiniCard person={person} onSelect={onSelect}/>
         <ChildGroup children={prev.children} members={members} onSelect={onSelect}/>
       </div>
 
-      {/* CURRENT SPOUSE: to the right of entire prev block */}
+      {/* PREV SPOUSE column on RIGHT (only if F and person is M) */}
+      {prev.spouse && !prevSpouseIsLeft && (
+        <>
+          <div style={{...MLINE,alignSelf:'flex-start',marginTop:30}}/>
+          <div style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
+            <MiniCard person={prev.spouse} onSelect={onSelect}/>
+            {prev.spouseOwnChildren.length>0&&(
+              <ChildGroup children={prev.spouseOwnChildren} members={members} onSelect={onSelect} lineColor='#fbbf24'/>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* CURRENT SPOUSE always on the RIGHT */}
       {curr.spouse && (
-        <div style={{display:'flex',alignItems:'flex-start',gap:0}}>
+        <>
           <div style={{...MLINE,alignSelf:'flex-start',marginTop:30}}/>
           <div style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
             <MiniCard person={curr.spouse} onSelect={onSelect}/>
             <ChildGroup children={curr.children} members={members} onSelect={onSelect}/>
-            <ChildGroup children={curr.spouseOwnChildren} members={members} onSelect={onSelect} lineColor='#e2e8f0'/>
+            {curr.spouseOwnChildren.length>0&&(
+              <ChildGroup children={curr.spouseOwnChildren} members={members} onSelect={onSelect} lineColor='#fbbf24'/>
+            )}
           </div>
-        </div>
+        </>
       )}
     </div>
   )
