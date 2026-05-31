@@ -118,7 +118,8 @@ function getMarriages(person: Member, members: Member[]): Array<{spouse: Member|
       // Supabase may return jsonb as object or string
       if (typeof parsed === 'string') parsed = JSON.parse(parsed)
       if (Array.isArray(parsed) && parsed.length > 0) prevMarriages = parsed
-    } catch {}
+      else console.log('bio_notes not array for', person.id, typeof parsed, parsed)
+    } catch(e) { console.log('bio_notes parse error for', person.id, e) }
   }
   const getSpouseOwnChildren = (spouse: Member|null): Member[] => {
     if (!spouse) return []
