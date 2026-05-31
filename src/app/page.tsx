@@ -141,36 +141,11 @@ function getMarriages(person: Member, members: Member[]): Array<{spouse: Member|
   return result
 }
 
-function ChildrenRow({children, members, onSelect}: {children: Member[], members: Member[], onSelect: (p:Member)=>void}) {
-  if (!children.length) return null
-  return (
-    <>
-      <div style={{width:2,height:18,background:'#cbd5e1'}}/>
-      <div style={{display:'flex',gap:8,borderTop:'2px solid #cbd5e1'}}>
-        {children.map(child=>(
-          <div key={child.id} style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
-            <div style={{width:2,height:16,background:'#cbd5e1'}}/>
-            <TreeNode person={child} members={members} onSelect={onSelect}/>
-          </div>
-        ))}
-      </div>
-    </>
-  )
-}
-
-
-// ── TREE RENDERING ───────────────────────────────────────────────────────────
-
-const MARRY_COLOR = "#d97706"  // golden solid — marriage line
-const BLOOD_COLOR = "#475569"  // dark grey solid — blood children
-const POLIT_COLOR = "#f59e0b"  // amber dashed — political children (no registered parent)
-
 function VLine({h,color=BLOOD_COLOR}:{h:number,color?:string}){
-  return <div style={{width:3,height:h,background:color,flexShrink:0}}/>
+  return <div style={{width:3,height:h,background:color,flexShrink:0,alignSelf:'center'}}/>
 }
 
-// Horizontal bar + vertical drops to children
-// Bar spans exactly center-to-center of first and last child
+// Children with proper center-to-center horizontal bar
 function Children({kids,members,onSelect,political=false}:{
   kids:Member[],members:Member[],onSelect:(p:Member)=>void,political?:boolean
 }){
@@ -188,11 +163,11 @@ function Children({kids,members,onSelect,political=false}:{
       <VLine h={20} color={color}/>
       <div style={{display:'flex',alignItems:'flex-start'}}>
         {kids.map((kid,i)=>(
-          <div key={kid.id} style={{display:'flex',flexDirection:'column',alignItems:'center',margin:'0 6px'}}>
-            <div style={{display:'flex',width:'100%'}}>
-              <div style={{flex:1,height:0,borderTop:i===0?'none':border}}/>
+          <div key={kid.id} style={{display:'flex',flexDirection:'column',alignItems:'center',margin:'0 12px'}}>
+            <div style={{display:'flex',width:'100%',minWidth:0}}>
+              <div style={{flex:1,minWidth:8,height:0,borderTop:i===0?'none':border}}/>
               <VLine h={20} color={color}/>
-              <div style={{flex:1,height:0,borderTop:i===kids.length-1?'none':border}}/>
+              <div style={{flex:1,minWidth:8,height:0,borderTop:i===kids.length-1?'none':border}}/>
             </div>
             <TreeNode person={kid} members={members} onSelect={onSelect}/>
           </div>
@@ -202,27 +177,19 @@ function Children({kids,members,onSelect,political=false}:{
   )
 }
 
-// A couple block: two cards + marriage line + their shared children below
-// The vertical stem drops from the JOIN POINT (between the two cards)
-function Couple({left,right,kids,members,onSelect}:{
-  left:Member,right:Member|null,kids:Member[],members:Member[],onSelect:(p:Member)=>void
+// A single couple block: [Left]——[Right] with kids hanging from center
+function CoupleWithKids({left,right,kids,members,onSelect}:{
+  left:Member, right:Member|null, kids:Member[],
+  members:Member[], onSelect:(p:Member)=>void
 }){
-  if(!right){
-    return (
-      <div style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
-        <MiniCard person={left} onSelect={onSelect}/>
-        <Children kids={kids} members={members} onSelect={onSelect}/>
-      </div>
-    )
-  }
-  // The join point is between the two cards
-  // We center the children under the marriage line (join point)
   return (
     <div style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
       <div style={{display:'flex',alignItems:'center'}}>
         <MiniCard person={left} onSelect={onSelect}/>
-        <div style={{width:20,height:3,background:MARRY_COLOR,flexShrink:0}}/>
-        <MiniCard person={right} onSelect={onSelect}/>
+        {right&&<>
+          <div style={{width:20,height:3,background:MARRY_COLOR,flexShrink:0}}/>
+          <MiniCard person={right} onSelect={onSelect}/>
+        </>}
       </div>
       <Children kids={kids} members={members} onSelect={onSelect}/>
     </div>
@@ -237,21 +204,25 @@ function TreeNode({person,members,onSelect}:{person:Member;members:Member[];onSe
     const {spouse,children} = marriages[0]
     const left  = !spouse||person.gender==='M' ? person : spouse
     const right = left===person ? spouse : person
-    return <Couple left={left} right={right??null} kids={children} members={members} onSelect={onSelect}/>
+    return <CoupleWithKids left={left} right={right??null} kids={children} members={members} onSelect={onSelect}/>
   }
 
   // ── MULTIPLE MARRIAGES ────────────────────────────────────────────
-  // Layout based on diagram:
+  // Diagram layout:
   //
   // [PrevSpouse]——[Person]——[CurrSpouse]
-  //      |              |              |
-  //  [ownKids]    [prevKids]     [currKids]
-  //                              [ownKids]
+  //      |         |              |
+  //  [ownKids] [prevKids]   [currKids+ownKids]
   //
-  // prevKids drop from the PrevSpouse——Person join point
-  // currKids drop from the Person——CurrSpouse join point
-  // PrevSpouse ownKids drop from PrevSpouse only
-  // CurrSpouse ownKids drop from CurrSpouse only
+  // prevKids drop from the [PrevSpouse——Person] JOIN POINT
+  // = center of the marriage line between PrevSpouse and Person
+  // currKids drop from the [Person——CurrSpouse] JOIN POINT
+  //
+  // Implementation: 
+  // - PrevSpouse has its own column with ownKids below
+  // - The marriage line + Person + prevKids form a centered block
+  // - CurrSpouse has its own column with currKids+ownKids below
+  // - The marriage lines visually connect everything
 
   const prev = marriages[0]
   const curr = marriages[marriages.length-1]
@@ -259,7 +230,7 @@ function TreeNode({person,members,onSelect}:{person:Member;members:Member[];onSe
   return (
     <div style={{display:'flex',alignItems:'flex-start',gap:0}}>
 
-      {/* PrevSpouse column: card + ownKids below */}
+      {/* PrevSpouse column: card on top, ownKids below */}
       {prev.spouse&&(
         <div style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
           <MiniCard person={prev.spouse} onSelect={onSelect}/>
@@ -267,18 +238,18 @@ function TreeNode({person,members,onSelect}:{person:Member;members:Member[];onSe
         </div>
       )}
 
-      {/* Join1 + Person + prevKids: the join point between PrevSpouse and Person */}
+      {/* Center: marriage line + Person + prevKids below JOIN POINT */}
       <div style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
         <div style={{display:'flex',alignItems:'center'}}>
           {prev.spouse&&<div style={{width:20,height:3,background:MARRY_COLOR,flexShrink:0}}/>}
           <MiniCard person={person} onSelect={onSelect}/>
           {curr.spouse&&<div style={{width:20,height:3,background:MARRY_COLOR,flexShrink:0}}/>}
         </div>
-        {/* prevKids hang from center of [PrevSpouse——Person] join = left side of Person */}
+        {/* prevKids drop from center of [PrevSpouse——Person] */}
         <Children kids={prev.children} members={members} onSelect={onSelect}/>
       </div>
 
-      {/* CurrSpouse column: card + currKids + ownKids below */}
+      {/* CurrSpouse column: card on top, currKids + ownKids below */}
       {curr.spouse&&(
         <div style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
           <MiniCard person={curr.spouse} onSelect={onSelect}/>
