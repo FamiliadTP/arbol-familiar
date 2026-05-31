@@ -174,17 +174,46 @@ function ChildGroup({children,members,onSelect,political=false}:{
 }){
   if(!children.length) return null
   const color = political ? POLIT_LINE : BLOOD_LINE
-  const lineStyle = political ? `2px dashed ${color}` : `3px solid ${color}`
+  const isSingle = children.length === 1
+
+  if(isSingle) {
+    // Single child: just a vertical line down
+    return (
+      <div style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
+        <div style={vline(18,color)}/>
+        <TreeNode person={children[0]} members={members} onSelect={onSelect}/>
+      </div>
+    )
+  }
+
+  // Multiple children: 
+  // stem down → horizontal bar (spans center-to-center) → vertical drops → children
+  // Each child contributes:
+  //   left half-bar | vertical drop | child | right half-bar
+  // So bar spans exactly center of first to center of last child
+  const bStyle = political ? `2px dashed ${color}` : `3px solid ${color}`
   return (
     <div style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
       <div style={vline(18,color)}/>
-      <div style={{display:'flex',alignItems:'flex-start',borderTop:lineStyle,gap:10,padding:'0 6px'}}>
-        {children.map(child=>(
-          <div key={child.id} style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
-            <div style={vline(18,color)}/>
-            <TreeNode person={child} members={members} onSelect={onSelect}/>
-          </div>
-        ))}
+      <div style={{display:'flex',alignItems:'flex-start'}}>
+        {children.map((child, i) => {
+          const isFirst = i === 0
+          const isLast  = i === children.length - 1
+          return (
+            <div key={child.id} style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
+              {/* Top connector: left-bar + drop + right-bar */}
+              <div style={{display:'flex',alignItems:'flex-start',width:'100%'}}>
+                {/* Left half of horizontal bar (hidden for first child) */}
+                <div style={{flex:1,height:0,borderTop:isFirst?'none':bStyle}}/>
+                {/* Vertical drop to child */}
+                <div style={vline(18,color)}/>
+                {/* Right half of horizontal bar (hidden for last child) */}
+                <div style={{flex:1,height:0,borderTop:isLast?'none':bStyle}}/>
+              </div>
+              <TreeNode person={child} members={members} onSelect={onSelect}/>
+            </div>
+          )
+        })}
       </div>
     </div>
   )
