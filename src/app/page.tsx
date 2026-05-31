@@ -236,22 +236,28 @@ function TreeNode({person,members,onSelect}:{person:Member;members:Member[];onSe
   return (
     <div style={{display:'flex',alignItems:'flex-start',gap:0}}>
 
-      {/* PREV SPOUSE column (LEFT) */}
-      {prev.spouse&&(
-        <>
+      {/* PREV SPOUSE + PERSON block (LEFT) */}
+      {/* Structure:
+           [PrevSpouse card]——[Person card]
+           [ownKids below]    [sharedKids below couple midpoint]
+      */}
+      <div style={{display:'flex',alignItems:'flex-start',gap:0}}>
+        {prev.spouse&&(
           <div style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
             <MiniCard person={prev.spouse} onSelect={onSelect}/>
+            {/* Prev spouse own kids hang from spouse only */}
             <ChildGroup children={prev.spouseOwnChildren} members={members} onSelect={onSelect} political={true}/>
           </div>
-          {/* Continuous solid marriage line */}
-          <div style={{width:16,height:3,background:MARRY_COLOR,flexShrink:0,alignSelf:'flex-start',marginTop:'28px'}}/>
-        </>
-      )}
-
-      {/* PERSON column (CENTER) - prev shared kids hang from here */}
-      <div style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
-        <MiniCard person={person} onSelect={onSelect}/>
-        <ChildGroup children={prev.children} members={members} onSelect={onSelect}/>
+        )}
+        {/* Couple + shared children as one centered unit */}
+        <div style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
+          <div style={{display:'flex',alignItems:'center',gap:0}}>
+            {prev.spouse&&<div style={{width:16,height:3,background:MARRY_COLOR,flexShrink:0}}/>}
+            <MiniCard person={person} onSelect={onSelect}/>
+          </div>
+          {/* Shared kids hang from midpoint of [PrevSpouse——Person] */}
+          <ChildGroup children={prev.children} members={members} onSelect={onSelect}/>
+        </div>
       </div>
 
       {/* CURR SPOUSE column (RIGHT) */}
