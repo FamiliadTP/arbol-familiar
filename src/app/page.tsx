@@ -295,18 +295,15 @@ function TreeNode({person, members, onSelect}: {
   return (
     <div style={{display:'flex', alignItems:'flex-start', gap:0}}>
 
-      {/* LEFT: prevKids hang from [PrevSpouse]——[Person] join */}
+      {/* LEFT: [PrevSpouse]——[Person] with prevKids hanging from center join */}
       {prev.spouse && (
-        <div style={{display:'flex', flexDirection:'column', alignItems:'flex-end'}}>
+        <div style={{display:'flex', flexDirection:'column', alignItems:'center'}}>
           <div style={{display:'flex', alignItems:'center'}}>
             <MiniCard person={prev.spouse} onSelect={onSelect}/>
             <div style={{width:20, height:3, background:MARRY_COLOR, flexShrink:0}}/>
+            <MiniCard person={person} onSelect={onSelect}/>
           </div>
-          {prev.children.length > 0 && (
-            <div style={{display:'flex', flexDirection:'column', alignItems:'center', width:'100%'}}>
-              <Kids list={prev.children} members={members} onSelect={onSelect}/>
-            </div>
-          )}
+          <Kids list={prev.children} members={members} onSelect={onSelect}/>
         </div>
       )}
 
@@ -339,9 +336,17 @@ function TreeNode({person, members, onSelect}: {
         </div>
       )}
 
-      {/* Prev spouse own kids */}
+      {/* Prev spouse own kids with unknown parent — don't repeat spouse card */}
       {prev.spouseOwnChildren.length > 0 && prev.spouse && (
-        <SpouseWithUnknown spouse={prev.spouse} ownKids={prev.spouseOwnChildren} members={members} onSelect={onSelect}/>
+        <div style={{display:'flex', flexDirection:'column', alignItems:'center'}}>
+          <MiniCard person={prev.spouse} onSelect={onSelect}/>
+          <VLine h={14} color={POLIT_COLOR}/>
+          <div style={{display:'flex', alignItems:'center'}}>
+            <div style={{width:20, height:2, borderTop:`2px dashed ${POLIT_COLOR}`}}/>
+            <UnknownParent/>
+          </div>
+          <Kids list={prev.spouseOwnChildren} members={members} onSelect={onSelect} political={true}/>
+        </div>
       )}
     </div>
   )
