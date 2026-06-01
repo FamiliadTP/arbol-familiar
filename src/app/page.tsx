@@ -167,24 +167,36 @@ function UnknownParent({ onAdd, patchContext }: {
       spouse_id:null, children_ids:[], external:true, email:null,
       bio_birthplace:null, bio_education:null, bio_occupation:null, bio_notes:null }
 
-    // 1. Insert new member
-    await supabase.from('members').insert(newMember)
+    // 1. Insert new member via RPC
+    await supabase.rpc('insert_member', { p_member: {
+      id, name, surname1, surname2:'', born, died:'', gender,
+      generation: patchContext?.person.generation ?? 3,
+      spouse_id:'', children_ids:[], external:true, email:'',
+      bio_birthplace:'', bio_education:'', bio_occupation:'', bio_notes:''
+    }})
 
-    // 2. Patch the bio_notes of the context person
+    // 2. Patch the bio_notes of the context person via RPC
     if (patchContext) {
       const { person, marriageIndex, field } = patchContext
       let bioNotes: any[] = []
       try { bioNotes = JSON.parse(person.bio_notes ?? '[]') } catch {}
       if (!Array.isArray(bioNotes)) bioNotes = []
-      // Ensure the marriage entry exists
       while (bioNotes.length <= marriageIndex) bioNotes.push({ spouse_id: null, children_ids: [] })
       if (field === 'spouse_id') {
         bioNotes[marriageIndex].spouse_id = id
       } else {
-        // spouse_own_children_ids: just set the new spouse_id for that unknown
         bioNotes[marriageIndex].spouse_own_partner_id = id
       }
-      await supabase.from('members').update({ bio_notes: JSON.stringify(bioNotes) }).eq('id', person.id)
+      const updatedPerson = {...person, bio_notes: JSON.stringify(bioNotes)}
+      await supabase.rpc('upsert_member', { p_member: {
+        id: person.id, name: person.name, surname1: person.surname1,
+        surname2: person.surname2 ?? '', born: person.born, died: person.died ?? '',
+        gender: person.gender, generation: person.generation,
+        spouse_id: person.spouse_id ?? '', children_ids: person.children_ids ?? [],
+        external: person.external, email: person.email ?? '',
+        bio_birthplace: person.bio_birthplace ?? '', bio_education: person.bio_education ?? '',
+        bio_occupation: person.bio_occupation ?? '', bio_notes: JSON.stringify(bioNotes)
+      }})
     }
 
     onAdd?.(newMember)
@@ -814,6 +826,20 @@ function NewMemberModal({onClose,onSave}:{onClose:()=>void;onSave:(m:Member)=>vo
   )
 }
 
+
+// Helper: convierte Member a objeto compatible con RPC
+function memberToRpc(m: Member) {
+  return {
+    id: m.id, name: m.name, surname1: m.surname1, surname2: m.surname2 ?? '',
+    born: m.born, died: m.died ?? '', gender: m.gender,
+    generation: m.generation, spouse_id: m.spouse_id ?? '',
+    children_ids: m.children_ids ?? [],
+    external: m.external, email: m.email ?? '',
+    bio_birthplace: m.bio_birthplace ?? '', bio_education: m.bio_education ?? '',
+    bio_occupation: m.bio_occupation ?? '', bio_notes: m.bio_notes ?? ''
+  }
+}
+
 export default function Home() {
   const [members, setMembers] = useState<Member[]>([])
   const [pending, setPending] = useState<PendingEdit[]>([])
@@ -877,14 +903,22 @@ export default function Home() {
 
   async function handleEditSubmit(updated:Member,note:string){
     if(usingDemo){ setMembers(m=>m.map(x=>x.id===updated.id?updated:x)); showToast('✅ Guardado (modo demo)') }
-    else if(isAdmin){ const{error}=await supabase.from('members').upsert(updated); if(error){showToast('❌ Error al guardar','error');return}; await loadData(); showToast('✅ Cambios guardados') }
+    else if(isAdmin){
+      const{error}=await supabase.rpc('upsert_member', {p_member: memberToRpc(updated)})
+      if(error){showToast('❌ Error al guardar','error');console.error(error);return}
+      await loadData(); showToast('✅ Cambios guardados')
+    }
     else{ const orig=members.find(m=>m.id===updated.id)!; const changes:Partial<Member>={}; (Object.keys(updated) as (keyof Member)[]).forEach(k=>{if(updated[k]!==orig[k])(changes as any)[k]=updated[k]}); const{error}=await supabase.from('pending_edits').insert({member_id:updated.id,proposed_by:'visitante',changes,note,status:'pending'}); if(error){showToast('❌ Error al enviar','error');return}; showToast('📤 Propuesta enviada a administradores','info') }
     setEditTarget(null); setSelected(null)
   }
 
   async function handleNewMember(m:Member){
     if(usingDemo){ setMembers(prev=>[...prev,m]); showToast('✅ Persona agregada (modo demo)') }
-    else{ const{error}=await supabase.from('members').insert(m); if(error){showToast('❌ Error al guardar','error');return}; await loadData(); showToast('✅ Persona agregada') }
+    else{
+      const{error}=await supabase.rpc('insert_member', {p_member: memberToRpc(m)})
+      if(error){showToast('❌ Error al guardar','error');console.error(error);return}
+      await loadData(); showToast('✅ Persona agregada')
+    }
     setShowNewMember(false)
   }
 
@@ -918,7 +952,7 @@ export default function Home() {
       if(!mapped.length){showToast('❌ No se encontraron datos válidos','error');setImporting(false);return}
       if(usingDemo){ setMembers(mapped); setUsingDemo(false); showToast(`✅ ${mapped.length} personas cargadas`) }
       else{
-        for(const m of mapped){ await supabase.from('members').upsert(m) }
+        for(const m of mapped){ await supabase.rpc('upsert_member', {p_member: memberToRpc(m)}) }
         await loadData()
         showToast(`✅ ${mapped.length} personas importadas`)
       }
@@ -926,7 +960,7 @@ export default function Home() {
     setImporting(false)
   }
 
-  async function handleApprove(id:string){ const edit=pending.find(p=>p.id===id)!; await supabase.from('members').upsert(edit.changes); await supabase.from('pending_edits').update({status:'approved'}).eq('id',id); await loadData(); showToast('✅ Cambio aprobado') }
+  async function handleApprove(id:string){ const edit=pending.find(p=>p.id===id)!; const m=members.find(x=>x.id===edit.member_id); if(m){ await supabase.rpc('upsert_member', {p_member: memberToRpc({...m,...edit.changes}) }) } await supabase.from('pending_edits').update({status:'approved'}).eq('id',id); await loadData(); showToast('✅ Cambio aprobado') }
   async function handleReject(id:string){ await supabase.from('pending_edits').update({status:'rejected'}).eq('id',id); setPending(p=>p.filter(x=>x.id!==id)); showToast('🗑️ Propuesta rechazada','error') }
 
   async function handleChangePassword(oldPass:string,newPass:string){
