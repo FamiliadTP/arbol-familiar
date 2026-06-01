@@ -1,12 +1,11 @@
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+const supabaseUrl = 'https://yzhivwkcbfmirkitxuwt.supabase.co'
+const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl6aGl2d2tjYmZtaXJraXR4dXd0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk0NTc0NzEsImV4cCI6MjA5NTAzMzQ3MX0.iwSvLt19HOJy25RrBgUncpS0-mWtMQFoqRkOhFIF40M'
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
 export type Gender = 'M' | 'F'
-
 export interface Member {
   id: string
   name: string
@@ -26,7 +25,6 @@ export interface Member {
   bio_notes: string | null
   created_at?: string
 }
-
 export interface PendingEdit {
   id: string
   member_id: string
