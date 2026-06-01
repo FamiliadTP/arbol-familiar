@@ -107,7 +107,7 @@ function sortByIds(members: Member[], ids: string[]): Member[] {
 function getMarriages(person: Member, members: Member[]): Array<{spouse: Member|null, children: Member[], spouseOwnChildren: Member[]}> {
   const allChildren = sortByIds(members.filter(m => person.children_ids?.includes(m.id)), person.children_ids ?? [])
   const currentSpouse = members.find(m => m.id === person.spouse_id) ?? null
-  let prevMarriages: Array<{spouse_id: string|null, children_ids: string[]}> = []
+  let prevMarriages: Array<{spouse_id: string|null, children_ids: string[], spouse_own_children_ids?: string[]}> = []
   if (person.bio_notes) {
     try {
       let parsed: any = person.bio_notes
@@ -115,7 +115,9 @@ function getMarriages(person: Member, members: Member[]): Array<{spouse: Member|
       if (Array.isArray(parsed) && parsed.length > 0) prevMarriages = parsed
     } catch(e) {}
   }
-  const getSpouseOwnChildren = (spouse: Member|null): Member[] => {
+  const getSpouseOwnChildren = (spouse: Member|null, explicitIds?: string[]): Member[] => {
+    if (explicitIds && explicitIds.length > 0)
+      return sortByIds(members.filter(m => explicitIds.includes(m.id)), explicitIds)
     if (!spouse) return []
     const own = members.filter(m => spouse.children_ids?.includes(m.id) && !person.children_ids?.includes(m.id))
     return sortByIds(own, spouse.children_ids ?? [])
@@ -129,7 +131,7 @@ function getMarriages(person: Member, members: Member[]): Array<{spouse: Member|
     const spouse = members.find(m => m.id === pm.spouse_id) ?? null
     const children = sortByIds(members.filter(m => pm.children_ids.includes(m.id)), pm.children_ids)
     children.forEach(c => usedChildIds.add(c.id))
-    result.push({ spouse, children, spouseOwnChildren: getSpouseOwnChildren(spouse) })
+    result.push({ spouse, children, spouseOwnChildren: getSpouseOwnChildren(spouse, pm.spouse_own_children_ids) })
   }
   const currentChildren = allChildren.filter(c => !usedChildIds.has(c.id))
   result.push({ spouse: currentSpouse, children: currentChildren, spouseOwnChildren: getSpouseOwnChildren(currentSpouse) })
