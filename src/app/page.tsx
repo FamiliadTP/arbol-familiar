@@ -310,34 +310,32 @@ function TreeNode({person, members, onSelect}: {
         </div>
       )}
 
-      {/* CENTER: Person */}
+      {/* CENTER + RIGHT: [Person]——[CurrSpouse] with currKids below the join */}
       <div style={{display:'flex', flexDirection:'column', alignItems:'center'}}>
-        <MiniCard person={person} onSelect={onSelect}/>
-      </div>
-
-      {/* RIGHT: currKids hang from [Person]——[CurrSpouse] join */}
-      {curr.spouse && (
-        <div style={{display:'flex', flexDirection:'column', alignItems:'flex-start'}}>
-          <div style={{display:'flex', alignItems:'center'}}>
+        <div style={{display:'flex', alignItems:'center'}}>
+          <MiniCard person={person} onSelect={onSelect}/>
+          {curr.spouse && <>
             <div style={{width:20, height:3, background:MARRY_COLOR, flexShrink:0}}/>
             <MiniCard person={curr.spouse} onSelect={onSelect}/>
-            {/* Curr spouse's other partner */}
-            {curr.spouseOwnChildren.length > 0 && (
-              <>
-                <div style={{width:20, height:3, background:MARRY_COLOR, flexShrink:0}}/>
-                {currSpouseOtherParent
-                  ? <MiniCard person={currSpouseOtherParent} onSelect={onSelect}/>
-                  : <div style={{width:56,height:56,borderRadius:10,border:'2px dashed #94a3b8',background:'#f8fafc',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',color:'#94a3b8',fontSize:18,fontWeight:700,flexShrink:0}}>?</div>
-                }
-              </>
-            )}
+          </>}
+        </div>
+        {curr.children.length > 0 && (
+          <Kids list={curr.children} members={members} onSelect={onSelect}/>
+        )}
+      </div>
+
+      {/* Curr spouse's own kids with their other partner */}
+      {curr.spouseOwnChildren.length > 0 && curr.spouse && (
+        <div style={{display:'flex', flexDirection:'column', alignItems:'center'}}>
+          <div style={{display:'flex', alignItems:'center'}}>
+            <MiniCard person={curr.spouse} onSelect={onSelect}/>
+            <div style={{width:20, height:3, background:MARRY_COLOR, flexShrink:0}}/>
+            {currSpouseOtherParent
+              ? <MiniCard person={currSpouseOtherParent} onSelect={onSelect}/>
+              : <div style={{width:56,height:56,borderRadius:10,border:'2px dashed #94a3b8',background:'#f8fafc',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',color:'#94a3b8',fontSize:18,fontWeight:700,flexShrink:0}}>?</div>
+            }
           </div>
-          {curr.children.length > 0 && (
-            <Kids list={curr.children} members={members} onSelect={onSelect}/>
-          )}
-          {curr.spouseOwnChildren.length > 0 && (
-            <Kids list={curr.spouseOwnChildren} members={members} onSelect={onSelect}/>
-          )}
+          <Kids list={curr.spouseOwnChildren} members={members} onSelect={onSelect}/>
         </div>
       )}
 
