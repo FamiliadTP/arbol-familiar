@@ -299,20 +299,17 @@ function TreeNode({person, members, onSelect}: {
 
       {/* PAIR 1: prev marriage — prevKids hang from this join */}
       {prev.spouse ? (
-        prev.spouseOwnChildren.length > 0 ? (
-          <div style={{display:'flex', alignItems:'flex-start', gap:0}}>
-            <SpouseWithUnknown spouse={prev.spouse} ownKids={prev.spouseOwnChildren} members={members} onSelect={onSelect}/>
-            <div style={{display:'flex', flexDirection:'column', alignItems:'center'}}>
-              <div style={{display:'flex', alignItems:'center'}}>
-                <div style={{width:20, height:3, background:MARRY_COLOR, flexShrink:0}}/>
-                <MiniCard person={person} onSelect={onSelect}/>
-              </div>
-              <Kids list={prev.children} members={members} onSelect={onSelect}/>
-            </div>
-          </div>
-        ) : (
+        <div style={{display:'flex', alignItems:'flex-start', gap:0}}>
           <Pair left={prevLeft} right={prevRight} kids={prev.children} members={members} onSelect={onSelect}/>
-        )
+          {prev.spouseOwnChildren.length > 0 && (
+            <div style={{display:'flex', flexDirection:'column', alignItems:'center', marginLeft:8}}>
+              <div style={{width:20, height:3, background:MARRY_COLOR, alignSelf:'center', marginTop:28}}/>
+            </div>
+          )}
+          {prev.spouseOwnChildren.length > 0 && (
+            <SpouseWithUnknown spouse={prev.spouse} ownKids={prev.spouseOwnChildren} members={members} onSelect={onSelect}/>
+          )}
+        </div>
       ) : (
         <div style={{display:'flex', flexDirection:'column', alignItems:'center'}}>
           <MiniCard person={person} onSelect={onSelect}/>
