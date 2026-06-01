@@ -369,20 +369,31 @@ function TreeNode({person, members, onSelect, onAddMember}: {
   return (
     <div style={{display:'flex', alignItems:'flex-start', gap:24}}>
 
-      {/* PAIR 1 prev spouse own children: [NN]——[PrevSpouseGhost] a la izquierda */}
-      {prev.spouseOwnChildren.length > 0 && prev.spouse && (
-        <div style={{display:'flex', flexDirection:'column', alignItems:'center'}}>
-          <div style={{display:'flex', alignItems:'center'}}>
-            <UnknownParent onAdd={onAddMember} patchContext={{person, marriageIndex:0, field:'spouse_own_children_ids'}}/>
-            <div style={{width:20, height:3, background:MARRY_COLOR, flexShrink:0}}/>
-            <div style={{position:'relative', opacity:0.45, cursor:'pointer'}} onClick={()=>onSelect(prev.spouse!)}>
-              <MiniCard person={prev.spouse} onSelect={onSelect}/>
-              <div style={{position:'absolute', bottom:-10, left:'50%', transform:'translateX(-50%)', background:'#475569', color:'#fff', fontSize:9, fontWeight:700, borderRadius:10, padding:'2px 6px', whiteSpace:'nowrap'}}>= misma</div>
+      {/* PAIR 1 prev spouse own children: [Julián/NN]——[PrevSpouseGhost] a la izquierda */}
+      {prev.spouseOwnChildren.length > 0 && prev.spouse && (()=>{
+        let bioNotes: any[] = []
+        try { bioNotes = JSON.parse(person.bio_notes ?? '[]') } catch {}
+        const prevMarriage = bioNotes[0]
+        const ownPartner = prevMarriage?.spouse_own_partner_id
+          ? members.find(m => m.id === prevMarriage.spouse_own_partner_id) ?? null
+          : null
+        return (
+          <div style={{display:'flex', flexDirection:'column', alignItems:'center'}}>
+            <div style={{display:'flex', alignItems:'center'}}>
+              {ownPartner
+                ? <MiniCard person={ownPartner} onSelect={onSelect}/>
+                : <UnknownParent onAdd={onAddMember} patchContext={{person, marriageIndex:0, field:'spouse_own_children_ids'}}/>
+              }
+              <div style={{width:20, height:3, background:MARRY_COLOR, flexShrink:0}}/>
+              <div style={{position:'relative', opacity:0.45, cursor:'pointer'}} onClick={()=>onSelect(prev.spouse!)}>
+                <MiniCard person={prev.spouse} onSelect={onSelect}/>
+                <div style={{position:'absolute', bottom:-10, left:'50%', transform:'translateX(-50%)', background:'#475569', color:'#fff', fontSize:9, fontWeight:700, borderRadius:10, padding:'2px 6px', whiteSpace:'nowrap'}}>= misma</div>
+              </div>
             </div>
+            <Kids list={prev.spouseOwnChildren} members={members} onSelect={onSelect} onAddMember={onAddMember} political={true}/>
           </div>
-          <Kids list={prev.spouseOwnChildren} members={members} onSelect={onSelect} onAddMember={onAddMember} political={true}/>
-        </div>
-      )}
+        )
+      })()}
 
       {/* PAIR 1: [?/PrevSpouse]——[Persona] con hijos colgando del punto medio */}
       <div style={{display:'flex', flexDirection:'column', alignItems:'center'}}>
