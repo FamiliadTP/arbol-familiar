@@ -537,11 +537,12 @@ function PendingView({pending,onApprove,onReject}:{pending:PendingEdit[];onAppro
   </div>
 }
 
-function AdminPanel({ onChangePassword, onImportExcel, onAddMember, importing }: {
+function AdminPanel({ onChangePassword, onImportExcel, onAddMember, importing, members }: {
   onChangePassword: (oldPass: string, newPass: string) => void
   onImportExcel: (file: File) => void
   onAddMember: () => void
   importing: boolean
+  members: Member[]
 }) {
   const [tab, setTab] = useState<'tools'|'password'>('tools')
   const [oldPass, setOldPass] = useState('')
@@ -556,6 +557,37 @@ function AdminPanel({ onChangePassword, onImportExcel, onAddMember, importing }:
     setPassError('')
     onChangePassword(oldPass, newPass)
     setOldPass(''); setNewPass(''); setNewPass2('')
+  }
+
+  const handleDownload = async () => {
+    const XLSX = await import('xlsx')
+    const rows = members.map(m => ({
+      id: m.id,
+      name: m.name,
+      surname1: m.surname1,
+      surname2: m.surname2,
+      born: m.born,
+      died: m.died ?? '',
+      gender: m.gender,
+      generation: m.generation,
+      spouse_id: m.spouse_id ?? '',
+      children_ids: (m.children_ids ?? []).join(','),
+      external: m.external ? 'true' : 'false',
+      email: m.email ?? '',
+      bio_birthplace: m.bio_birthplace ?? '',
+      bio_education: m.bio_education ?? '',
+      bio_occupation: m.bio_occupation ?? '',
+      bio_notes: m.bio_notes ?? '',
+    }))
+    const ws = XLSX.utils.json_to_sheet(rows)
+    // Column widths
+    ws['!cols'] = [
+      {wch:12},{wch:14},{wch:16},{wch:16},{wch:12},{wch:12},{wch:8},{wch:10},
+      {wch:14},{wch:30},{wch:8},{wch:22},{wch:20},{wch:20},{wch:20},{wch:40}
+    ]
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Miembros')
+    XLSX.writeFile(wb, 'arbol_familiar.xlsx')
   }
 
   return (
@@ -573,6 +605,9 @@ function AdminPanel({ onChangePassword, onImportExcel, onAddMember, importing }:
         <div style={{display:'flex',flexDirection:'column',gap:10}}>
           <button onClick={onAddMember} style={{padding:'12px 16px',background:'#16a34a',color:'#fff',border:'none',borderRadius:10,cursor:'pointer',fontWeight:700,fontSize:14,textAlign:'left'}}>
             ➕ Agregar nueva persona
+          </button>
+          <button onClick={handleDownload} style={{padding:'12px 16px',background:'#0369a1',color:'#fff',border:'none',borderRadius:10,cursor:'pointer',fontWeight:700,fontSize:14,textAlign:'left'}}>
+            📥 Descargar datos Excel
           </button>
           <div style={{background:'#fff',borderRadius:10,padding:14,border:'2px dashed #cbd5e1'}}>
             <div style={{fontWeight:700,fontSize:13,marginBottom:6}}>📊 Cargar datos desde Excel</div>
@@ -796,7 +831,7 @@ export default function Home() {
         {view==='list'&&<ListView members={members} onSelect={setSelected}/>}
         {view==='birthdays'&&<BirthdayView members={members} onSelect={setSelected}/>}
         {view==='stats'&&<StatsView members={members}/>}
-        {view==='admin'&&isAdmin&&<AdminPanel onChangePassword={handleChangePassword} onImportExcel={handleImportExcel} onAddMember={()=>setShowNewMember(true)} importing={importing}/>}
+        {view==='admin'&&isAdmin&&<AdminPanel onChangePassword={handleChangePassword} onImportExcel={handleImportExcel} onAddMember={()=>setShowNewMember(true)} importing={importing} members={members}/>}
         {view==='pending'&&isAdmin&&<PendingView pending={pending} onApprove={handleApprove} onReject={handleReject}/>}
       </div>
 
