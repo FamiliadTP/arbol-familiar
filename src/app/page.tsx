@@ -146,24 +146,56 @@ function VLine({h, color=BLOOD_COLOR}: {h:number, color?:string}) {
   return <div style={{width:3, height:h, background:color, flexShrink:0, alignSelf:'center'}}/>
 }
 
-function UnknownParent({ onAdd }: { onAdd?: (m: Member) => void }) {
+// context: which person's bio_notes to patch, and which marriage index (null = spouse_own_children_ids of that index)
+function UnknownParent({ onAdd, patchContext }: {
+  onAdd?: (m: Member) => void,
+  patchContext?: { person: Member, marriageIndex: number, field: 'spouse_id' | 'spouse_own_children_ids' }
+}) {
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
   const [surname1, setSurname1] = useState('')
   const [born, setBorn] = useState('')
   const [gender, setGender] = useState<'M'|'F'>('M')
+  const [saving, setSaving] = useState(false)
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!name || !surname1 || !born) return
-    const id = `unknown_${Date.now()}`
-    onAdd?.({ id, name, surname1, surname2:'', born, died:null, gender, generation:0, spouse_id:null, children_ids:[], external:true, email:null, bio_birthplace:null, bio_education:null, bio_occupation:null, bio_notes:null } as Member)
+    setSaving(true)
+    const id = `g_${Date.now()}`
+    const newMember: Member = { id, name, surname1, surname2:'', born, died:null, gender,
+      generation: patchContext?.person.generation ?? 3,
+      spouse_id:null, children_ids:[], external:true, email:null,
+      bio_birthplace:null, bio_education:null, bio_occupation:null, bio_notes:null }
+
+    // 1. Insert new member
+    await supabase.from('members').insert(newMember)
+
+    // 2. Patch the bio_notes of the context person
+    if (patchContext) {
+      const { person, marriageIndex, field } = patchContext
+      let bioNotes: any[] = []
+      try { bioNotes = JSON.parse(person.bio_notes ?? '[]') } catch {}
+      if (!Array.isArray(bioNotes)) bioNotes = []
+      // Ensure the marriage entry exists
+      while (bioNotes.length <= marriageIndex) bioNotes.push({ spouse_id: null, children_ids: [] })
+      if (field === 'spouse_id') {
+        bioNotes[marriageIndex].spouse_id = id
+      } else {
+        // spouse_own_children_ids: just set the new spouse_id for that unknown
+        bioNotes[marriageIndex].spouse_own_partner_id = id
+      }
+      await supabase.from('members').update({ bio_notes: JSON.stringify(bioNotes) }).eq('id', person.id)
+    }
+
+    onAdd?.(newMember)
+    setSaving(false)
     setOpen(false)
   }
 
   if (open) return (
     <div style={{width:130, borderRadius:10, border:'2px dashed #d97706', background:'#fffbeb', padding:'8px 10px', flexShrink:0}}>
       <div style={{fontSize:10, color:'#92400e', fontWeight:700, marginBottom:6}}>Agregar datos</div>
-      {[['Nombre', name, setName],['Apellido', surname1, setSurname1]] .map(([l,v,fn]:any) => (
+      {[['Nombre', name, setName],['Apellido', surname1, setSurname1]].map(([l,v,fn]:any) => (
         <input key={l} placeholder={l} value={v} onChange={(e:any)=>fn(e.target.value)}
           style={{width:'100%', fontSize:11, padding:'3px 6px', borderRadius:6, border:'1px solid #fbbf24', marginBottom:4, boxSizing:'border-box' as any}}/>
       ))}
@@ -176,22 +208,24 @@ function UnknownParent({ onAdd }: { onAdd?: (m: Member) => void }) {
       </select>
       <div style={{display:'flex', gap:4}}>
         <button onClick={()=>setOpen(false)} style={{flex:1, fontSize:10, padding:'3px', borderRadius:6, border:'1px solid #e2e8f0', background:'#f1f5f9', cursor:'pointer'}}>✕</button>
-        <button onClick={handleSave} style={{flex:2, fontSize:10, padding:'3px', borderRadius:6, border:'none', background:'#d97706', color:'#fff', cursor:'pointer', fontWeight:700}}>Guardar</button>
+        <button onClick={handleSave} disabled={saving} style={{flex:2, fontSize:10, padding:'3px', borderRadius:6, border:'none', background: saving ? '#94a3b8' : '#d97706', color:'#fff', cursor: saving ? 'not-allowed' : 'pointer', fontWeight:700}}>
+          {saving ? '⏳' : 'Guardar'}
+        </button>
       </div>
     </div>
   )
 
   return (
-    <div onClick={()=>onAdd && setOpen(true)} style={{
+    <div onClick={()=>setOpen(true)} style={{
       width:80, borderRadius:10, border:'2px dashed #94a3b8',
       background:'#f8fafc', display:'flex', flexDirection:'column',
       alignItems:'center', justifyContent:'center', padding:'8px 4px',
       color:'#94a3b8', fontSize:18, fontWeight:700, flexShrink:0,
-      cursor: onAdd ? 'pointer' : 'default'
+      cursor:'pointer'
     }}>
       <div>?</div>
       <div style={{fontSize:8, marginTop:1, textAlign:'center'}}>no registrado</div>
-      {onAdd && <div style={{fontSize:9, color:'#d97706', marginTop:4}}>✏️ editar</div>}
+      <div style={{fontSize:9, color:'#d97706', marginTop:4}}>✏️ editar</div>
     </div>
   )
 }
@@ -327,7 +361,7 @@ function TreeNode({person, members, onSelect, onAddMember}: {
       {prev.spouseOwnChildren.length > 0 && prev.spouse && (
         <div style={{display:'flex', flexDirection:'column', alignItems:'center'}}>
           <div style={{display:'flex', alignItems:'center'}}>
-            <UnknownParent onAdd={onAddMember}/>
+            <UnknownParent onAdd={onAddMember} patchContext={{person, marriageIndex:0, field:'spouse_own_children_ids'}}/>
             <div style={{width:20, height:3, background:MARRY_COLOR, flexShrink:0}}/>
             <div style={{position:'relative', opacity:0.45, cursor:'pointer'}} onClick={()=>onSelect(prev.spouse!)}>
               <MiniCard person={prev.spouse} onSelect={onSelect}/>
@@ -343,7 +377,7 @@ function TreeNode({person, members, onSelect, onAddMember}: {
         <div style={{display:'flex', alignItems:'center'}}>
           {prev.spouse
             ? <MiniCard person={prev.spouse} onSelect={onSelect}/>
-            : <UnknownParent onAdd={onAddMember}/>
+            : <UnknownParent onAdd={onAddMember} patchContext={{person, marriageIndex:0, field:'spouse_id'}}/>
           }
           <div style={{width:20, height:3, background:MARRY_COLOR, flexShrink:0}}/>
           <MiniCard person={person} onSelect={onSelect}/>
@@ -359,7 +393,7 @@ function TreeNode({person, members, onSelect, onAddMember}: {
             <div style={{width:20, height:3, background:MARRY_COLOR, flexShrink:0}}/>
             {curr.spouse
               ? <MiniCard person={curr.spouse} onSelect={onSelect}/>
-              : <UnknownParent onAdd={onAddMember}/>
+              : <UnknownParent onAdd={onAddMember} patchContext={{person, marriageIndex:marriages.length-1, field:'spouse_id'}}/>
             }
           </div>
           <Kids list={curr.children} members={members} onSelect={onSelect} onAddMember={onAddMember}/>
