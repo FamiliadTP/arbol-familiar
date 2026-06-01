@@ -334,13 +334,16 @@ function TreeNode({person, members, onSelect, onAddMember}: {
         <Kids list={prev.children} members={members} onSelect={onSelect} onAddMember={onAddMember}/>
       </div>
 
-      {/* PAIR 2: [GhostCard]——[CurrSpouse] */}
-      {curr.spouse && (
+      {/* PAIR 2: [GhostCard]——[CurrSpouse o ?] */}
+      {(curr.spouse || curr.children.length > 0) && (
         <div style={{display:'flex', flexDirection:'column', alignItems:'center'}}>
           <div style={{display:'flex', alignItems:'center'}}>
             <GhostCard/>
             <div style={{width:20, height:3, background:MARRY_COLOR, flexShrink:0}}/>
-            <MiniCard person={curr.spouse} onSelect={onSelect}/>
+            {curr.spouse
+              ? <MiniCard person={curr.spouse} onSelect={onSelect}/>
+              : <UnknownParent onAdd={onAddMember}/>
+            }
           </div>
           <Kids list={curr.children} members={members} onSelect={onSelect} onAddMember={onAddMember}/>
         </div>
