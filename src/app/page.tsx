@@ -295,7 +295,7 @@ function TreeNode({person, members, onSelect}: {
     : null
 
   return (
-    <div style={{display:'flex', alignItems:'flex-start', gap:0}}>
+    <div style={{display:'flex', alignItems:'flex-start', gap:16}}>
 
       {/* PAIR 1: [PrevSpouse]——[Person] — prevKids hang from this join */}
       {prev.spouse ? (
