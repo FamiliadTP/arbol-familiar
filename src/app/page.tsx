@@ -645,6 +645,9 @@ function NewMemberModal({onClose,onSave}:{onClose:()=>void;onSave:(m:Member)=>vo
   )
 }
 
+const ADMIN_PASS_KEY = 'arbol_admin_pass'
+const getStoredPass = () => typeof window !== 'undefined' ? (localStorage.getItem(ADMIN_PASS_KEY)||'familia2024') : 'familia2024'
+
 export default function Home() {
   const [members, setMembers] = useState<Member[]>([])
   const [pending, setPending] = useState<PendingEdit[]>([])
