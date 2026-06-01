@@ -112,12 +112,12 @@ function getMarriages(person: Member, members: Member[]): Array<{spouse: Member|
   const allChildren = sortByIds(members.filter(m => person.children_ids?.includes(m.id)), person.children_ids ?? [])
   const currentSpouse = members.find(m => m.id === person.spouse_id) ?? null
   let prevMarriages: Array<{spouse_id: string|null, children_ids: string[]}> = []
+  console.log('getMarriages called for', person.id, 'bio_notes:', person.bio_notes, 'type:', typeof person.bio_notes)
   if (person.bio_notes) {
     try {
       let parsed: any = person.bio_notes
-      // Supabase may return jsonb as object or string
       if (typeof parsed === 'string') parsed = JSON.parse(parsed)
-      if (Array.isArray(parsed) && parsed.length > 0) prevMarriages = parsed
+      if (Array.isArray(parsed) && parsed.length > 0) { prevMarriages = parsed; console.log('prevMarriages SET for', person.id, prevMarriages) }
       else console.log('bio_notes not array for', person.id, typeof parsed, parsed)
     } catch(e) { console.log('bio_notes parse error for', person.id, e) }
   }
