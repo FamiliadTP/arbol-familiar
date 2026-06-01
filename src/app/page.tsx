@@ -297,14 +297,10 @@ function TreeNode({person, members, onSelect}: {
   return (
     <div style={{display:'flex', alignItems:'flex-start', gap:16}}>
 
-      {/* FAR LEFT: PrevSpouse own kids with unknown parent (e.g. Angélica + NN → Ema/Borja/Filipa) */}
+      {/* FAR LEFT: PrevSpouse own kids with unknown parent — Angélica shown once in Pair1, only ? here */}
       {prev.spouseOwnChildren.length > 0 && prev.spouse && (
         <div style={{display:'flex', flexDirection:'column', alignItems:'center'}}>
-          <div style={{display:'flex', alignItems:'center'}}>
-            <MiniCard person={prev.spouse} onSelect={onSelect}/>
-            <div style={{width:20, height:3, background:MARRY_COLOR, flexShrink:0}}/>
-            <UnknownParent/>
-          </div>
+          <UnknownParent/>
           <Kids list={prev.spouseOwnChildren} members={members} onSelect={onSelect} political={true}/>
         </div>
       )}
