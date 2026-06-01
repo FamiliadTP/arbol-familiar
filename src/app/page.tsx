@@ -326,13 +326,31 @@ function TreeNode({person, members, onSelect}: {
         </div>
       )}
 
-      {/* Spouse own kids with unknown parent (shown separately) */}
+      {/* Prev spouse own kids with unknown parent */}
       {prev.spouseOwnChildren.length > 0 && prev.spouse && (
         <SpouseWithUnknown spouse={prev.spouse} ownKids={prev.spouseOwnChildren} members={members} onSelect={onSelect}/>
       )}
-      {curr.spouseOwnChildren.length > 0 && curr.spouse && (
-        <SpouseWithUnknown spouse={curr.spouse} ownKids={curr.spouseOwnChildren} members={members} onSelect={onSelect}/>
-      )}
+
+      {/* Curr spouse own kids — show [CurrSpouse]——[OtherParent] with kids below */}
+      {curr.spouseOwnChildren.length > 0 && curr.spouse && (() => {
+        const otherParent = members.find(m =>
+          m.id !== curr.spouse!.id &&
+          curr.spouseOwnChildren.every(c => m.children_ids?.includes(c.id))
+        ) ?? null
+        return (
+          <div style={{display:'flex', flexDirection:'column', alignItems:'center'}}>
+            <div style={{display:'flex', alignItems:'center'}}>
+              <MiniCard person={curr.spouse} onSelect={onSelect}/>
+              <div style={{width:20, height:3, background:MARRY_COLOR, flexShrink:0}}/>
+              {otherParent
+                ? <MiniCard person={otherParent} onSelect={onSelect}/>
+                : <div style={{width:56,height:56,borderRadius:10,border:'2px dashed #94a3b8',background:'#f8fafc',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',color:'#94a3b8',fontSize:18,fontWeight:700}}>?</div>
+              }
+            </div>
+            <Kids list={curr.spouseOwnChildren} members={members} onSelect={onSelect}/>
+          </div>
+        )
+      })()}
     </div>
   )
 }
