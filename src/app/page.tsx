@@ -275,82 +275,76 @@ function TreeNode({person, members, onSelect}: {
   }
 
   // ── MULTIPLE MARRIAGES ────────────────────────────────────────────────────
-  // We render TWO Pair blocks side by side, person appears in BOTH:
+  // Layout: [PrevSpouse]——[Person]——[CurrSpouse]——[CurrSpouseOtherPartner]
+  //              prevKids↑              currKids↑        spouseOwnKids↑
   //
-  //   Pair1: [PrevSpouse]——[Person]    Pair2: [Person]——[CurrSpouse]
-  //               prevKids↑                       currKids↑
-  //
-  // This guarantees prevKids hang from the Prev join AND currKids from the Curr join.
-  // Person is shown twice — this is the only CSS-flex way to achieve correct join points.
+  // Person appears ONCE in the center. Kids hang from the correct join point
+  // using absolute-positioned anchors via flex column trick.
 
   const prev = marriages[0]
   const curr = marriages[marriages.length - 1]
 
-  // Determine M-left/F-right order for prev pair
-  const prevLeft  = prev.spouse?.gender === 'M' ? prev.spouse : person
-  const prevRight = prevLeft === person ? (prev.spouse ?? null) : person
-
-  // Determine M-left/F-right order for curr pair
-  const currLeft  = person.gender === 'M' ? person : (curr.spouse ?? null)
-  const currRight = currLeft === person ? (curr.spouse ?? null) : person
+  // Find other parent of curr spouse's own kids (e.g. Mascaró for María Teresa)
+  const currSpouseOtherParent = curr.spouseOwnChildren.length > 0 && curr.spouse
+    ? members.find(m =>
+        m.id !== curr.spouse!.id &&
+        curr.spouseOwnChildren.every(c => m.children_ids?.includes(c.id))
+      ) ?? null
+    : null
 
   return (
     <div style={{display:'flex', alignItems:'flex-start', gap:0}}>
 
-      {/* PAIR 1: [PrevSpouse]——[Person] with prevKids below */}
-      {prev.spouse ? (
-        <div style={{display:'flex', flexDirection:'column', alignItems:'center'}}>
+      {/* LEFT: prevKids hang from [PrevSpouse]——[Person] join */}
+      {prev.spouse && (
+        <div style={{display:'flex', flexDirection:'column', alignItems:'flex-end'}}>
           <div style={{display:'flex', alignItems:'center'}}>
             <MiniCard person={prev.spouse} onSelect={onSelect}/>
             <div style={{width:20, height:3, background:MARRY_COLOR, flexShrink:0}}/>
-            <MiniCard person={person} onSelect={onSelect}/>
           </div>
-          <Kids list={prev.children} members={members} onSelect={onSelect}/>
-        </div>
-      ) : (
-        <div style={{display:'flex', flexDirection:'column', alignItems:'center'}}>
-          <MiniCard person={person} onSelect={onSelect}/>
-          <Kids list={prev.children} members={members} onSelect={onSelect}/>
+          {prev.children.length > 0 && (
+            <div style={{display:'flex', flexDirection:'column', alignItems:'center', width:'100%'}}>
+              <Kids list={prev.children} members={members} onSelect={onSelect}/>
+            </div>
+          )}
         </div>
       )}
 
-      {/* PAIR 2: [Person]——[CurrSpouse] with currKids below */}
+      {/* CENTER: Person */}
+      <div style={{display:'flex', flexDirection:'column', alignItems:'center'}}>
+        <MiniCard person={person} onSelect={onSelect}/>
+      </div>
+
+      {/* RIGHT: currKids hang from [Person]——[CurrSpouse] join */}
       {curr.spouse && (
-        <div style={{display:'flex', flexDirection:'column', alignItems:'center'}}>
+        <div style={{display:'flex', flexDirection:'column', alignItems:'flex-start'}}>
           <div style={{display:'flex', alignItems:'center'}}>
-            <MiniCard person={person} onSelect={onSelect}/>
             <div style={{width:20, height:3, background:MARRY_COLOR, flexShrink:0}}/>
             <MiniCard person={curr.spouse} onSelect={onSelect}/>
+            {/* Curr spouse's other partner */}
+            {curr.spouseOwnChildren.length > 0 && (
+              <>
+                <div style={{width:20, height:3, background:MARRY_COLOR, flexShrink:0}}/>
+                {currSpouseOtherParent
+                  ? <MiniCard person={currSpouseOtherParent} onSelect={onSelect}/>
+                  : <div style={{width:56,height:56,borderRadius:10,border:'2px dashed #94a3b8',background:'#f8fafc',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',color:'#94a3b8',fontSize:18,fontWeight:700,flexShrink:0}}>?</div>
+                }
+              </>
+            )}
           </div>
-          <Kids list={curr.children} members={members} onSelect={onSelect}/>
+          {curr.children.length > 0 && (
+            <Kids list={curr.children} members={members} onSelect={onSelect}/>
+          )}
+          {curr.spouseOwnChildren.length > 0 && (
+            <Kids list={curr.spouseOwnChildren} members={members} onSelect={onSelect}/>
+          )}
         </div>
       )}
 
-      {/* Prev spouse own kids with unknown parent */}
+      {/* Prev spouse own kids */}
       {prev.spouseOwnChildren.length > 0 && prev.spouse && (
         <SpouseWithUnknown spouse={prev.spouse} ownKids={prev.spouseOwnChildren} members={members} onSelect={onSelect}/>
       )}
-
-      {/* Curr spouse own kids — show [CurrSpouse]——[OtherParent] with kids below */}
-      {curr.spouseOwnChildren.length > 0 && curr.spouse && (() => {
-        const otherParent = members.find(m =>
-          m.id !== curr.spouse!.id &&
-          curr.spouseOwnChildren.every(c => m.children_ids?.includes(c.id))
-        ) ?? null
-        return (
-          <div style={{display:'flex', flexDirection:'column', alignItems:'center'}}>
-            <div style={{display:'flex', alignItems:'center'}}>
-              <MiniCard person={curr.spouse} onSelect={onSelect}/>
-              <div style={{width:20, height:3, background:MARRY_COLOR, flexShrink:0}}/>
-              {otherParent
-                ? <MiniCard person={otherParent} onSelect={onSelect}/>
-                : <div style={{width:56,height:56,borderRadius:10,border:'2px dashed #94a3b8',background:'#f8fafc',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',color:'#94a3b8',fontSize:18,fontWeight:700}}>?</div>
-              }
-            </div>
-            <Kids list={curr.spouseOwnChildren} members={members} onSelect={onSelect}/>
-          </div>
-        )
-      })()}
     </div>
   )
 }
