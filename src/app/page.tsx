@@ -882,7 +882,7 @@ export default function Home() {
       setAdminUser({ username: admin.username, role: admin.role, branch: admin.family_branch })
       setShowLogin(false); setLoginUsername(''); setLoginPassword('')
       setView('admin')
-      showToast(\`👑 Bienvenido, \${admin.username}\`)
+      showToast(`👑 Bienvenido, ${admin.username}`)
     } else {
       setLoginError('Usuario o contraseña incorrectos')
     }
@@ -985,7 +985,7 @@ export default function Home() {
   const VIEWS=[
     {id:'tree',label:'🌳 Árbol'},{id:'list',label:'📋 Lista'},
     {id:'birthdays',label:'🎂 Cumpleaños'},{id:'stats',label:'📊 Stats'},
-    ...(isAdmin?[{id:'admin',label:'👑 Admin'},{id:'pending',label:`⏳ Aprobar${pending.length>0?` (${pending.length})`:''}`}]:[]),
+    ...(isAdmin?[{id:'admin',label:'👑 Admin'},{id:'pending',label:'⏳ Aprobar'+(pending.length>0?' ('+pending.length+')':'')}]:[]),
   ]
 
   if(loading)return<div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',fontSize:14,color:'#64748b'}}>Cargando árbol familiar…</div>
