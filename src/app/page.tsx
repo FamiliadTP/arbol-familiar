@@ -591,19 +591,30 @@ function PendingView({pending,onApprove,onReject}:{pending:PendingEdit[];onAppro
   </div>
 }
 
-function AdminPanel({ onChangePassword, onImportExcel, onAddMember, importing, members }: {
+function AdminPanel({ onChangePassword, onImportExcel, onAddMember, importing, members, isSuper, adminUser }: {
   onChangePassword: (oldPass: string, newPass: string) => void
   onImportExcel: (file: File) => void
   onAddMember: () => void
   importing: boolean
   members: Member[]
+  isSuper: boolean
+  adminUser: {username:string,role:string,branch:string|null}|null
 }) {
-  const [tab, setTab] = useState<'tools'|'password'>('tools')
+  const [tab, setTab] = useState<'tools'|'password'|'admins'>('tools')
   const [oldPass, setOldPass] = useState('')
   const [newPass, setNewPass] = useState('')
   const [newPass2, setNewPass2] = useState('')
   const [passError, setPassError] = useState('')
+  const [admins, setAdmins] = useState<any[]>([])
+  const [newAdmin, setNewAdmin] = useState({username:'',password:'',role:'family',family_branch:''})
   const fileRef = useRef<HTMLInputElement>(null)
+
+  const loadAdmins = async () => {
+    const {data} = await supabase.from('admins').select('id,username,role,family_branch,created_at').order('created_at')
+    if (data) setAdmins(data)
+  }
+
+  useEffect(()=>{ if(tab==='admins') loadAdmins() },[tab])
 
   const handleChangePass = () => {
     if (newPass !== newPass2) { setPassError('Las contraseñas no coinciden'); return }
@@ -611,6 +622,23 @@ function AdminPanel({ onChangePassword, onImportExcel, onAddMember, importing, m
     setPassError('')
     onChangePassword(oldPass, newPass)
     setOldPass(''); setNewPass(''); setNewPass2('')
+  }
+
+  const handleAddAdmin = async () => {
+    if (!newAdmin.username || !newAdmin.password) return
+    await supabase.rpc('create_admin', {
+      p_username: newAdmin.username,
+      p_password: newAdmin.password,
+      p_role: newAdmin.role,
+      p_branch: newAdmin.family_branch || null
+    })
+    setNewAdmin({username:'',password:'',role:'family',family_branch:''})
+    loadAdmins()
+  }
+
+  const handleDeleteAdmin = async (id:string) => {
+    await supabase.from('admins').delete().eq('id',id)
+    loadAdmins()
   }
 
   const handleDownload = async () => {
@@ -651,7 +679,7 @@ function AdminPanel({ onChangePassword, onImportExcel, onAddMember, importing, m
         <div style={{fontWeight:800,fontSize:16,color:'#1e293b'}}>Panel de Administrador</div>
       </div>
       <div style={{display:'flex',gap:8,marginBottom:16}}>
-        {[['tools','🛠️ Herramientas'],['password','🔑 Contraseña']].map(([t,l])=>(
+        {([['tools','🛠️ Herramientas'],['password','🔑 Contraseña'],...(isSuper?[['admins','👥 Admins']]:[])] as [string,string][]).map(([t,l])=>(
           <button key={t} onClick={()=>setTab(t as any)} style={{padding:'6px 14px',borderRadius:20,border:'none',cursor:'pointer',background:tab===t?'#1e293b':'#e2e8f0',color:tab===t?'#fff':'#64748b',fontWeight:600,fontSize:12}}>{l}</button>
         ))}
       </div>
@@ -675,7 +703,7 @@ function AdminPanel({ onChangePassword, onImportExcel, onAddMember, importing, m
       )}
       {tab==='password'&&(
         <div style={{display:'flex',flexDirection:'column',gap:10,maxWidth:320}}>
-          <div style={{fontSize:13,color:'#64748b',marginBottom:4}}>Cambia la contraseña de administrador.</div>
+          <div style={{fontSize:13,color:'#64748b',marginBottom:4}}>Cambia tu contraseña.</div>
           {[['Contraseña actual',oldPass,setOldPass],['Nueva contraseña',newPass,setNewPass],['Confirmar nueva contraseña',newPass2,setNewPass2]].map(([l,v,fn])=>(
             <label key={l as string} style={{display:'flex',flexDirection:'column',gap:4,fontSize:12,color:'#64748b',fontWeight:600}}>
               {l as string}
@@ -684,7 +712,42 @@ function AdminPanel({ onChangePassword, onImportExcel, onAddMember, importing, m
           ))}
           {passError&&<div style={{fontSize:12,color:'#dc2626'}}>{passError}</div>}
           <button onClick={handleChangePass} style={{padding:'10px',background:'#1e293b',color:'#fff',border:'none',borderRadius:8,cursor:'pointer',fontWeight:700,fontSize:13,marginTop:4}}>💾 Cambiar contraseña</button>
-          <div style={{fontSize:11,color:'#94a3b8',marginTop:4}}>⚠️ La contraseña se guarda en el navegador.</div>
+        </div>
+      )}
+      {tab==='admins'&&isSuper&&(
+        <div style={{display:'flex',flexDirection:'column',gap:12}}>
+          <div style={{fontSize:13,fontWeight:700,color:'#1e293b',marginBottom:4}}>Administradores activos</div>
+          {admins.map(a=>(
+            <div key={a.id} style={{display:'flex',alignItems:'center',gap:10,background:'#fff',borderRadius:10,padding:'10px 14px',border:'1px solid #e2e8f0'}}>
+              <div style={{flex:1}}>
+                <div style={{fontWeight:700,fontSize:13}}>{a.username}</div>
+                <div style={{fontSize:11,color:'#94a3b8'}}>{a.role==='super'?'Super admin':'Admin familia'}{a.family_branch?` · ${a.family_branch}`:''}</div>
+              </div>
+              {a.username!==adminUser?.username&&<button onClick={()=>handleDeleteAdmin(a.id)} style={{padding:'4px 10px',background:'#fee2e2',color:'#dc2626',border:'none',borderRadius:6,cursor:'pointer',fontSize:11,fontWeight:700}}>Eliminar</button>}
+            </div>
+          ))}
+          <div style={{borderTop:'1px solid #e2e8f0',paddingTop:12,marginTop:4}}>
+            <div style={{fontSize:13,fontWeight:700,color:'#1e293b',marginBottom:8}}>Agregar administrador</div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+              {[['Usuario',newAdmin.username,'username'],['Contraseña',newAdmin.password,'password']].map(([l,v,k])=>(
+                <label key={k} style={{display:'flex',flexDirection:'column',gap:4,fontSize:12,color:'#64748b',fontWeight:600}}>
+                  {l}<input type={k==='password'?'password':'text'} value={v} onChange={e=>setNewAdmin(n=>({...n,[k]:e.target.value}))} style={{padding:'8px 10px',borderRadius:8,border:'1px solid #e2e8f0',fontSize:12,outline:'none'}}/>
+                </label>
+              ))}
+              <label style={{display:'flex',flexDirection:'column',gap:4,fontSize:12,color:'#64748b',fontWeight:600}}>
+                Rol
+                <select value={newAdmin.role} onChange={e=>setNewAdmin(n=>({...n,role:e.target.value}))} style={{padding:'8px 10px',borderRadius:8,border:'1px solid #e2e8f0',fontSize:12,outline:'none'}}>
+                  <option value="family">Admin familia</option>
+                  <option value="super">Super admin</option>
+                </select>
+              </label>
+              <label style={{display:'flex',flexDirection:'column',gap:4,fontSize:12,color:'#64748b',fontWeight:600}}>
+                Rama (id miembro)
+                <input value={newAdmin.family_branch} onChange={e=>setNewAdmin(n=>({...n,family_branch:e.target.value}))} placeholder="ej: g2m1" style={{padding:'8px 10px',borderRadius:8,border:'1px solid #e2e8f0',fontSize:12,outline:'none'}}/>
+              </label>
+            </div>
+            <button onClick={handleAddAdmin} style={{marginTop:10,width:'100%',padding:'10px',background:'#1e293b',color:'#fff',border:'none',borderRadius:8,cursor:'pointer',fontWeight:700,fontSize:13}}>➕ Agregar admin</button>
+          </div>
         </div>
       )}
     </div>
@@ -751,9 +814,6 @@ function NewMemberModal({onClose,onSave}:{onClose:()=>void;onSave:(m:Member)=>vo
   )
 }
 
-const ADMIN_PASS_KEY = 'arbol_admin_pass'
-const getStoredPass = () => typeof window !== 'undefined' ? (localStorage.getItem(ADMIN_PASS_KEY)||'familia2024') : 'familia2024'
-
 export default function Home() {
   const [members, setMembers] = useState<Member[]>([])
   const [pending, setPending] = useState<PendingEdit[]>([])
@@ -762,14 +822,45 @@ export default function Home() {
   const [selected, setSelected] = useState<Member|null>(null)
   const [editTarget, setEditTarget] = useState<Member|null>(null)
   const [showNewMember, setShowNewMember] = useState(false)
-  const [isAdmin, setIsAdmin] = useState(false)
+  const [adminUser, setAdminUser] = useState<{username:string,role:string,branch:string|null}|null>(null)
   const [showLogin, setShowLogin] = useState(false)
-  const [adminPass, setAdminPass] = useState('')
+  const [loginUsername, setLoginUsername] = useState('')
+  const [loginPassword, setLoginPassword] = useState('')
+  const [loginError, setLoginError] = useState('')
+  const [loginLoading, setLoginLoading] = useState(false)
   const [toast, setToast] = useState<{msg:string;type:string}|null>(null)
   const [usingDemo, setUsingDemo] = useState(false)
   const [importing, setImporting] = useState(false)
 
+  const isAdmin = !!adminUser
+  const isSuper = adminUser?.role === 'super'
   const showToast = (msg:string, type='success') => { setToast({msg,type}); setTimeout(()=>setToast(null),3500) }
+
+  async function handleLogin() {
+    if (!loginUsername || !loginPassword) return
+    setLoginLoading(true); setLoginError('')
+    const { data, error } = await supabase
+      .from('admins')
+      .select('username, role, family_branch')
+      .eq('username', loginUsername)
+      .eq('password_hash', `crypt('${loginPassword}', password_hash)`)
+      .maybeSingle()
+    // Use RPC for secure password check
+    const { data: rpcData } = await supabase.rpc('check_admin_password', {
+      p_username: loginUsername,
+      p_password: loginPassword
+    })
+    setLoginLoading(false)
+    if (rpcData && rpcData.length > 0) {
+      const admin = rpcData[0]
+      setAdminUser({ username: admin.username, role: admin.role, branch: admin.family_branch })
+      setShowLogin(false); setLoginUsername(''); setLoginPassword('')
+      setView('admin')
+      showToast(\`👑 Bienvenido, \${admin.username}\`)
+    } else {
+      setLoginError('Usuario o contraseña incorrectos')
+    }
+  }
 
   useEffect(()=>{ loadData() },[])
 
@@ -838,10 +929,18 @@ export default function Home() {
   async function handleApprove(id:string){ const edit=pending.find(p=>p.id===id)!; await supabase.from('members').upsert(edit.changes); await supabase.from('pending_edits').update({status:'approved'}).eq('id',id); await loadData(); showToast('✅ Cambio aprobado') }
   async function handleReject(id:string){ await supabase.from('pending_edits').update({status:'rejected'}).eq('id',id); setPending(p=>p.filter(x=>x.id!==id)); showToast('🗑️ Propuesta rechazada','error') }
 
-  function handleChangePassword(oldPass:string,newPass:string){
-    const current=getStoredPass()
-    if(oldPass!==current){showToast('❌ Contraseña actual incorrecta','error');return}
-    localStorage.setItem(ADMIN_PASS_KEY,newPass)
+  async function handleChangePassword(oldPass:string,newPass:string){
+    if (!adminUser) return
+    const { data } = await supabase.rpc('check_admin_password', {
+      p_username: adminUser.username,
+      p_password: oldPass
+    })
+    if (!data || data.length === 0) { showToast('❌ Contraseña actual incorrecta','error'); return }
+    const { error } = await supabase.rpc('update_admin_password', {
+      p_username: adminUser.username,
+      p_new_password: newPass
+    })
+    if (error) { showToast('❌ Error al cambiar contraseña','error'); return }
     showToast('✅ Contraseña actualizada')
   }
 
@@ -864,9 +963,9 @@ export default function Home() {
           <div style={{color:'#fff',fontSize:18,fontWeight:900,letterSpacing:-0.5}}>🌳 Árbol Familiar</div>
           <div style={{color:'#94a3b8',fontSize:11,marginTop:2}}>{members.length} miembros{usingDemo?' · modo demo':''}</div>
         </div>
-        {isAdmin
-          ?<button onClick={()=>setIsAdmin(false)} style={{padding:'6px 12px',background:'#16a34a',color:'#fff',border:'none',borderRadius:8,cursor:'pointer',fontSize:12,fontWeight:700}}>👑 Admin activo</button>
-          :<button onClick={()=>setShowLogin(true)} style={{padding:'6px 12px',background:'rgba(255,255,255,0.1)',color:'#fff',border:'1px solid rgba(255,255,255,0.2)',borderRadius:8,cursor:'pointer',fontSize:12}}>🔐 Admin</button>}
+        {adminUser
+          ?<button onClick={()=>setAdminUser(null)} style={{padding:'6px 12px',background:'#16a34a',color:'#fff',border:'none',borderRadius:8,cursor:'pointer',fontSize:12,fontWeight:700}}>👑 {adminUser.username}</button>
+          :<button onClick={()=>setShowLogin(true)} style={{padding:'6px 12px',background:'rgba(255,255,255,0.1)',color:'#fff',border:'1px solid rgba(255,255,255,0.2)',borderRadius:8,cursor:'pointer',fontSize:12}}>🔐 Acceder</button>}
       </div>
 
       <div style={{background:'#fff',borderBottom:'2px solid #e2e8f0',display:'flex',gap:0,overflowX:'auto'}}>
@@ -885,7 +984,7 @@ export default function Home() {
         {view==='list'&&<ListView members={members} onSelect={setSelected}/>}
         {view==='birthdays'&&<BirthdayView members={members} onSelect={setSelected}/>}
         {view==='stats'&&<StatsView members={members}/>}
-        {view==='admin'&&isAdmin&&<AdminPanel onChangePassword={handleChangePassword} onImportExcel={handleImportExcel} onAddMember={()=>setShowNewMember(true)} importing={importing} members={members}/>}
+        {view==='admin'&&isAdmin&&<AdminPanel onChangePassword={handleChangePassword} onImportExcel={handleImportExcel} onAddMember={()=>setShowNewMember(true)} importing={importing} members={members} isSuper={isSuper} adminUser={adminUser}/>}
         {view==='pending'&&isAdmin&&<PendingView pending={pending} onApprove={handleApprove} onReject={handleReject}/>}
       </div>
 
@@ -893,16 +992,27 @@ export default function Home() {
       {editTarget&&<EditModal person={editTarget} isAdmin={isAdmin} onClose={()=>setEditTarget(null)} onSubmit={handleEditSubmit}/>}
       {showNewMember&&<NewMemberModal onClose={()=>setShowNewMember(false)} onSave={handleNewMember}/>}
 
-      {showLogin&&<div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.6)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:3000}} onClick={()=>setShowLogin(false)}>
+      {showLogin&&<div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.6)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:3000}} onClick={()=>{setShowLogin(false);setLoginError('')}}>
         <div style={{background:'#fff',borderRadius:16,padding:24,maxWidth:320,width:'100%'}} onClick={e=>e.stopPropagation()}>
           <div style={{fontWeight:800,fontSize:17,marginBottom:16}}>🔐 Acceso administrador</div>
-          <input type="password" placeholder="Contraseña" value={adminPass} onChange={e=>setAdminPass(e.target.value)}
-            onKeyDown={e=>{if(e.key==='Enter'){if(adminPass===getStoredPass()){setIsAdmin(true);setShowLogin(false);setView('admin');showToast('👑 Bienvenido, administrador')}else showToast('❌ Contraseña incorrecta','error');setAdminPass('')}}}
-            style={{width:'100%',padding:'10px 12px',borderRadius:8,border:'2px solid #e2e8f0',fontSize:14,boxSizing:'border-box',outline:'none'}}/>
-          <div style={{fontSize:11,color:'#94a3b8',marginTop:6,marginBottom:14}}>Contraseña inicial: <b>familia2024</b></div>
+          <label style={{display:'flex',flexDirection:'column',gap:4,fontSize:12,color:'#64748b',fontWeight:600,marginBottom:10}}>
+            Usuario
+            <input value={loginUsername} onChange={e=>setLoginUsername(e.target.value)}
+              onKeyDown={e=>e.key==='Enter'&&handleLogin()}
+              style={{padding:'10px 12px',borderRadius:8,border:'2px solid #e2e8f0',fontSize:14,outline:'none'}}/>
+          </label>
+          <label style={{display:'flex',flexDirection:'column',gap:4,fontSize:12,color:'#64748b',fontWeight:600,marginBottom:10}}>
+            Contraseña
+            <input type="password" value={loginPassword} onChange={e=>setLoginPassword(e.target.value)}
+              onKeyDown={e=>e.key==='Enter'&&handleLogin()}
+              style={{padding:'10px 12px',borderRadius:8,border:'2px solid #e2e8f0',fontSize:14,outline:'none'}}/>
+          </label>
+          {loginError&&<div style={{fontSize:12,color:'#dc2626',marginBottom:10}}>{loginError}</div>}
           <div style={{display:'flex',gap:8}}>
-            <button onClick={()=>setShowLogin(false)} style={{flex:1,padding:10,background:'#f1f5f9',border:'none',borderRadius:8,cursor:'pointer',fontWeight:600,fontSize:13}}>Cancelar</button>
-            <button onClick={()=>{if(adminPass===getStoredPass()){setIsAdmin(true);setShowLogin(false);setView('admin');showToast('👑 Bienvenido')}else showToast('❌ Contraseña incorrecta','error');setAdminPass('')}} style={{flex:1,padding:10,background:'#1e293b',color:'#fff',border:'none',borderRadius:8,cursor:'pointer',fontWeight:700,fontSize:13}}>Entrar</button>
+            <button onClick={()=>{setShowLogin(false);setLoginError('')}} style={{flex:1,padding:10,background:'#f1f5f9',border:'none',borderRadius:8,cursor:'pointer',fontWeight:600,fontSize:13}}>Cancelar</button>
+            <button onClick={handleLogin} disabled={loginLoading} style={{flex:1,padding:10,background:loginLoading?'#94a3b8':'#1e293b',color:'#fff',border:'none',borderRadius:8,cursor:loginLoading?'not-allowed':'pointer',fontWeight:700,fontSize:13}}>
+              {loginLoading?'⏳ Verificando...':'Entrar'}
+            </button>
           </div>
         </div>
       </div>}
