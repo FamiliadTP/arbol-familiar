@@ -323,6 +323,21 @@ function TreeNode({person, members, onSelect, onAddMember}: {
   return (
     <div style={{display:'flex', alignItems:'flex-start', gap:24}}>
 
+      {/* PAIR 1 prev spouse own children: [NN]——[PrevSpouseGhost] a la izquierda */}
+      {prev.spouseOwnChildren.length > 0 && prev.spouse && (
+        <div style={{display:'flex', flexDirection:'column', alignItems:'center'}}>
+          <div style={{display:'flex', alignItems:'center'}}>
+            <UnknownParent onAdd={onAddMember}/>
+            <div style={{width:20, height:3, background:MARRY_COLOR, flexShrink:0}}/>
+            <div style={{position:'relative', opacity:0.45, cursor:'pointer'}} onClick={()=>onSelect(prev.spouse!)}>
+              <MiniCard person={prev.spouse} onSelect={onSelect}/>
+              <div style={{position:'absolute', bottom:-10, left:'50%', transform:'translateX(-50%)', background:'#475569', color:'#fff', fontSize:9, fontWeight:700, borderRadius:10, padding:'2px 6px', whiteSpace:'nowrap'}}>= misma</div>
+            </div>
+          </div>
+          <Kids list={prev.spouseOwnChildren} members={members} onSelect={onSelect} onAddMember={onAddMember} political={true}/>
+        </div>
+      )}
+
       {/* PAIR 1: [?/PrevSpouse]——[Persona] con hijos colgando del punto medio */}
       <div style={{display:'flex', flexDirection:'column', alignItems:'center'}}>
         <div style={{display:'flex', alignItems:'center'}}>
