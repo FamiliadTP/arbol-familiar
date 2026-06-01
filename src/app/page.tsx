@@ -143,12 +143,6 @@ function getMarriages(person: Member, members: Member[]): Array<{spouse: Member|
 }
 
 // ── TREE RENDERING ───────────────────────────────────────────────────────────
-// Layout rules:
-// 1. Single marriage: [Husband]——[Wife], kids hang from the marriage LINE center
-// 2. Multiple marriages: [PrevSpouse]——[Person]——[CurrSpouse]
-//    - prevKids hang from [PrevSpouse——Person] join
-//    - currKids hang from [Person——CurrSpouse] join
-//    - Spouse own kids (unknown other parent) shown with ? symbol
 
 const MARRY_COLOR = "#d97706"
 const BLOOD_COLOR = "#475569"
@@ -203,11 +197,11 @@ function Kids({list, members, onSelect, political=false}: {
   )
 }
 
-// [Left]——[Right] couple with kids hanging from join point center
-// This is the fundamental building block ensuring kids always connect from between both parents
-function Pair({left, right, kids, members, onSelect, political=false}: {
+// THE key component: [Left]——[Right] with kids hanging from the JOIN POINT center
+// Kids ALWAYS connect from between the two parents, never from one parent alone
+function Pair({left, right, kids, members, onSelect}: {
   left:Member, right:Member|null, kids:Member[],
-  members:Member[], onSelect:(p:Member)=>void, political?:boolean
+  members:Member[], onSelect:(p:Member)=>void
 }) {
   return (
     <div style={{display:'flex', flexDirection:'column', alignItems:'center'}}>
@@ -218,26 +212,25 @@ function Pair({left, right, kids, members, onSelect, political=false}: {
           <MiniCard person={right} onSelect={onSelect}/>
         </>}
       </div>
-      <Kids list={kids} members={members} onSelect={onSelect} political={political}/>
+      <Kids list={kids} members={members} onSelect={onSelect}/>
     </div>
   )
 }
 
-// Spouse column with unknown-parent symbol and their own kids
-function SpouseOwnKids({spouse, ownKids, members, onSelect}: {
+// Spouse column with unknown-parent symbol and their own kids below
+function SpouseWithUnknown({spouse, ownKids, members, onSelect}: {
   spouse:Member, ownKids:Member[], members:Member[], onSelect:(p:Member)=>void
 }) {
+  if (!ownKids.length) return <MiniCard person={spouse} onSelect={onSelect}/>
   return (
     <div style={{display:'flex', flexDirection:'column', alignItems:'center'}}>
       <MiniCard person={spouse} onSelect={onSelect}/>
-      {ownKids.length > 0 && <>
-        <VLine h={14} color={POLIT_COLOR}/>
-        <div style={{display:'flex', alignItems:'center'}}>
-          <div style={{width:20, height:2, borderTop:`2px dashed ${POLIT_COLOR}`}}/>
-          <UnknownParent/>
-        </div>
-        <Kids list={ownKids} members={members} onSelect={onSelect} political={true}/>
-      </>}
+      <VLine h={14} color={POLIT_COLOR}/>
+      <div style={{display:'flex', alignItems:'center'}}>
+        <div style={{width:20, height:2, borderTop:`2px dashed ${POLIT_COLOR}`}}/>
+        <UnknownParent/>
+      </div>
+      <Kids list={ownKids} members={members} onSelect={onSelect} political={true}/>
     </div>
   )
 }
@@ -251,13 +244,13 @@ function TreeNode({person, members, onSelect}: {
   if (marriages.length === 1) {
     const {spouse, children, spouseOwnChildren} = marriages[0]
 
-    // Spouse has own kids with unknown other parent (e.g. Angélica, Tere Vial)
+    // Spouse has own kids with unknown other parent
     if (spouseOwnChildren.length > 0 && spouse) {
-      const spouseLeft = spouse.gender === 'M'
+      const spouseIsLeft = spouse.gender === 'M'
       return (
         <div style={{display:'flex', alignItems:'flex-start', gap:0}}>
-          {spouseLeft ? <>
-            <SpouseOwnKids spouse={spouse} ownKids={spouseOwnChildren} members={members} onSelect={onSelect}/>
+          {spouseIsLeft ? <>
+            <SpouseWithUnknown spouse={spouse} ownKids={spouseOwnChildren} members={members} onSelect={onSelect}/>
             <div style={{width:20, height:3, background:MARRY_COLOR, alignSelf:'flex-start', marginTop:28, flexShrink:0}}/>
             <div style={{display:'flex', flexDirection:'column', alignItems:'center'}}>
               <MiniCard person={person} onSelect={onSelect}/>
@@ -269,43 +262,46 @@ function TreeNode({person, members, onSelect}: {
               <Kids list={children} members={members} onSelect={onSelect}/>
             </div>
             <div style={{width:20, height:3, background:MARRY_COLOR, alignSelf:'flex-start', marginTop:28, flexShrink:0}}/>
-            <SpouseOwnKids spouse={spouse} ownKids={spouseOwnChildren} members={members} onSelect={onSelect}/>
+            <SpouseWithUnknown spouse={spouse} ownKids={spouseOwnChildren} members={members} onSelect={onSelect}/>
           </>}
         </div>
       )
     }
 
-    // Normal: Pair ensures kids hang from couple center
+    // Normal single marriage: M left, F right
     const left  = !spouse || person.gender === 'M' ? person : spouse
     const right = (left === person ? spouse : person) ?? null
     return <Pair left={left} right={right} kids={children} members={members} onSelect={onSelect}/>
   }
 
   // ── MULTIPLE MARRIAGES ────────────────────────────────────────────────────
-  // We use TWO Pair blocks so each set of kids hangs from the correct join:
+  // We render TWO Pair blocks side by side, person appears in BOTH:
   //
-  // Block1: [PrevSpouse]——[Person]   → prevKids hang from this join ✓
-  // Block2:              [Person]——[CurrSpouse] → currKids hang from this join ✓
+  //   Pair1: [PrevSpouse]——[Person]    Pair2: [Person]——[CurrSpouse]
+  //               prevKids↑                       currKids↑
   //
-  // Person appears in BOTH blocks side by side.
-  // This is the only CSS-flex way to guarantee correct join points.
+  // This guarantees prevKids hang from the Prev join AND currKids from the Curr join.
+  // Person is shown twice — this is the only CSS-flex way to achieve correct join points.
 
   const prev = marriages[0]
   const curr = marriages[marriages.length - 1]
 
-  // M always left, F always right within each pair
-  const p1Left  = prev.spouse?.gender === 'M' ? prev.spouse : person
-  const p1Right = p1Left === person ? prev.spouse ?? null : person
+  // Determine M-left/F-right order for prev pair
+  const prevLeft  = prev.spouse?.gender === 'M' ? prev.spouse : person
+  const prevRight = prevLeft === person ? (prev.spouse ?? null) : person
+
+  // Determine M-left/F-right order for curr pair
+  const currLeft  = person.gender === 'M' ? person : (curr.spouse ?? null)
+  const currRight = currLeft === person ? (curr.spouse ?? null) : person
 
   return (
     <div style={{display:'flex', alignItems:'flex-start', gap:0}}>
 
-      {/* BLOCK 1: [PrevSpouse]——[Person] with prevKids below the join */}
+      {/* PAIR 1: prev marriage — prevKids hang from this join */}
       {prev.spouse ? (
         prev.spouseOwnChildren.length > 0 ? (
-          // Prev spouse has own kids (unknown other parent)
           <div style={{display:'flex', alignItems:'flex-start', gap:0}}>
-            <SpouseOwnKids spouse={prev.spouse} ownKids={prev.spouseOwnChildren} members={members} onSelect={onSelect}/>
+            <SpouseWithUnknown spouse={prev.spouse} ownKids={prev.spouseOwnChildren} members={members} onSelect={onSelect}/>
             <div style={{display:'flex', flexDirection:'column', alignItems:'center'}}>
               <div style={{display:'flex', alignItems:'center'}}>
                 <div style={{width:20, height:3, background:MARRY_COLOR, flexShrink:0}}/>
@@ -315,21 +311,18 @@ function TreeNode({person, members, onSelect}: {
             </div>
           </div>
         ) : (
-          // Normal prev couple — Pair centers kids under the join
-          <Pair left={p1Left} right={p1Right} kids={prev.children} members={members} onSelect={onSelect}/>
+          <Pair left={prevLeft} right={prevRight} kids={prev.children} members={members} onSelect={onSelect}/>
         )
       ) : (
-        // No prev spouse — just person with prev children
         <div style={{display:'flex', flexDirection:'column', alignItems:'center'}}>
           <MiniCard person={person} onSelect={onSelect}/>
           <Kids list={prev.children} members={members} onSelect={onSelect}/>
         </div>
       )}
 
-      {/* BLOCK 2: [Person]——[CurrSpouse] with currKids below the join */}
+      {/* PAIR 2: curr marriage — currKids hang from this join */}
       {curr.spouse && (
         curr.spouseOwnChildren.length > 0 ? (
-          // Curr spouse has own kids (unknown other parent)
           <div style={{display:'flex', alignItems:'flex-start', gap:0}}>
             <div style={{display:'flex', flexDirection:'column', alignItems:'center'}}>
               <div style={{display:'flex', alignItems:'center'}}>
@@ -339,10 +332,9 @@ function TreeNode({person, members, onSelect}: {
               <Kids list={curr.children} members={members} onSelect={onSelect}/>
             </div>
             <div style={{width:20, height:3, background:MARRY_COLOR, alignSelf:'flex-start', marginTop:28, flexShrink:0}}/>
-            <SpouseOwnKids spouse={curr.spouse} ownKids={curr.spouseOwnChildren} members={members} onSelect={onSelect}/>
+            <SpouseWithUnknown spouse={curr.spouse} ownKids={curr.spouseOwnChildren} members={members} onSelect={onSelect}/>
           </div>
         ) : (
-          // Normal curr couple — person (M) always left, spouse (F) right
           <div style={{display:'flex', flexDirection:'column', alignItems:'center'}}>
             <div style={{display:'flex', alignItems:'center'}}>
               <div style={{width:20, height:3, background:MARRY_COLOR, flexShrink:0}}/>
