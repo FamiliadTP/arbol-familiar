@@ -199,9 +199,9 @@ function UnknownParent({ onAdd, patchContext }: {
       }})
     }
 
-    onAdd?.(newMember)
     setSaving(false)
     setOpen(false)
+    onAdd?.(newMember)
   }
 
   if (open) return (
@@ -369,20 +369,31 @@ function TreeNode({person, members, onSelect, onAddMember}: {
   return (
     <div style={{display:'flex', alignItems:'flex-start', gap:24}}>
 
-      {/* PAIR 1 prev spouse own children: [NN]——[PrevSpouseGhost] a la izquierda */}
-      {prev.spouseOwnChildren.length > 0 && prev.spouse && (
-        <div style={{display:'flex', flexDirection:'column', alignItems:'center'}}>
-          <div style={{display:'flex', alignItems:'center'}}>
-            <UnknownParent onAdd={onAddMember} patchContext={{person, marriageIndex:0, field:'spouse_own_children_ids'}}/>
-            <div style={{width:20, height:3, background:MARRY_COLOR, flexShrink:0}}/>
-            <div style={{position:'relative', opacity:0.45, cursor:'pointer'}} onClick={()=>onSelect(prev.spouse!)}>
-              <MiniCard person={prev.spouse} onSelect={onSelect}/>
-              <div style={{position:'absolute', bottom:-10, left:'50%', transform:'translateX(-50%)', background:'#475569', color:'#fff', fontSize:9, fontWeight:700, borderRadius:10, padding:'2px 6px', whiteSpace:'nowrap'}}>= misma</div>
+      {/* PAIR 1 prev spouse own children: [Julián/NN]——[PrevSpouseGhost] a la izquierda */}
+      {prev.spouseOwnChildren.length > 0 && prev.spouse && (()=>{
+        let bioNotes: any[] = []
+        try { bioNotes = JSON.parse(person.bio_notes ?? '[]') } catch {}
+        const prevMarriage = bioNotes[0]
+        const ownPartner = prevMarriage?.spouse_own_partner_id
+          ? members.find(m => m.id === prevMarriage.spouse_own_partner_id) ?? null
+          : null
+        return (
+          <div style={{display:'flex', flexDirection:'column', alignItems:'center'}}>
+            <div style={{display:'flex', alignItems:'center'}}>
+              {ownPartner
+                ? <MiniCard person={ownPartner} onSelect={onSelect}/>
+                : <UnknownParent onAdd={onAddMember} patchContext={{person, marriageIndex:0, field:'spouse_own_children_ids'}}/>
+              }
+              <div style={{width:20, height:3, background:MARRY_COLOR, flexShrink:0}}/>
+              <div style={{position:'relative', opacity:0.45, cursor:'pointer'}} onClick={()=>onSelect(prev.spouse!)}>
+                <MiniCard person={prev.spouse} onSelect={onSelect}/>
+                <div style={{position:'absolute', bottom:-10, left:'50%', transform:'translateX(-50%)', background:'#475569', color:'#fff', fontSize:9, fontWeight:700, borderRadius:10, padding:'2px 6px', whiteSpace:'nowrap'}}>= misma</div>
+              </div>
             </div>
+            <Kids list={prev.spouseOwnChildren} members={members} onSelect={onSelect} onAddMember={onAddMember} political={true}/>
           </div>
-          <Kids list={prev.spouseOwnChildren} members={members} onSelect={onSelect} onAddMember={onAddMember} political={true}/>
-        </div>
-      )}
+        )
+      })()}
 
       {/* PAIR 1: [?/PrevSpouse]——[Persona] con hijos colgando del punto medio */}
       <div style={{display:'flex', flexDirection:'column', alignItems:'center'}}>
@@ -906,7 +917,8 @@ export default function Home() {
     else if(isAdmin){
       const{error}=await supabase.rpc('upsert_member', {p_member: memberToRpc(updated)})
       if(error){showToast('❌ Error al guardar','error');console.error(error);return}
-      await loadData(); showToast('✅ Cambios guardados')
+      showToast('✅ Cambios guardados')
+      await loadData()
     }
     else{ const orig=members.find(m=>m.id===updated.id)!; const changes:Partial<Member>={}; (Object.keys(updated) as (keyof Member)[]).forEach(k=>{if(updated[k]!==orig[k])(changes as any)[k]=updated[k]}); const{error}=await supabase.from('pending_edits').insert({member_id:updated.id,proposed_by:'visitante',changes,note,status:'pending'}); if(error){showToast('❌ Error al enviar','error');return}; showToast('📤 Propuesta enviada a administradores','info') }
     setEditTarget(null); setSelected(null)
@@ -917,8 +929,9 @@ export default function Home() {
     else{
       const{error}=await supabase.rpc('insert_member', {p_member: memberToRpc(m)})
       if(error){showToast('❌ Error al guardar','error');console.error(error);return}
-      await loadData(); showToast('✅ Persona agregada')
+      showToast('✅ Persona agregada')
     }
+    await loadData()
     setShowNewMember(false)
   }
 
@@ -1009,7 +1022,7 @@ export default function Home() {
       <div style={{padding:'16px',maxWidth:1100,margin:'0 auto'}}>
         {view==='tree'&&<div style={{overflowX:'auto',paddingBottom:16}}>
           <div style={{display:'flex',gap:48,justifyContent:'center',padding:'10px 16px',minWidth:'max-content'}}>
-            {coupleRoots.map(r=><TreeNode key={r.id} person={r} members={members} onSelect={setSelected} onAddMember={handleNewMember}/>)}
+            {coupleRoots.map(r=><TreeNode key={r.id} person={r} members={members} onSelect={setSelected} onAddMember={async(m)=>{await handleNewMember(m); await loadData()}}/>)}
           </div>
           <div style={{textAlign:'center',marginTop:12,fontSize:11,color:'#94a3b8'}}>
             <span style={{color:'#d97706',fontWeight:700}}>borde dorado</span> = línea de sangre &nbsp;·&nbsp; <span style={{fontWeight:700}}>★</span> = familiar político &nbsp;·&nbsp; † fallecido &nbsp;·&nbsp; <span style={{color:'#d97706'}}>——</span> matrimonio &nbsp;·&nbsp; Toca para ver detalles
