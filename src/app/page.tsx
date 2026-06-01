@@ -1,4 +1,3 @@
-```tsx
 'use client'
 import { useEffect, useState, useRef } from 'react'
 import { supabase, Member, PendingEdit } from '../lib/supabase'
@@ -145,29 +144,65 @@ function VLine({h, color=BLOOD_COLOR}: {h:number, color?:string}) {
   return <div style={{width:3, height:h, background:color, flexShrink:0, alignSelf:'center'}}/>
 }
 
-function UnknownParent() {
+function UnknownParent({ onAdd }: { onAdd?: (m: Member) => void }) {
+  const [open, setOpen] = useState(false)
+  const [name, setName] = useState('')
+  const [surname1, setSurname1] = useState('')
+  const [born, setBorn] = useState('')
+  const [gender, setGender] = useState<'M'|'F'>('M')
+
+  const handleSave = () => {
+    if (!name || !surname1 || !born) return
+    const id = `unknown_${Date.now()}`
+    onAdd?.({ id, name, surname1, surname2:'', born, died:null, gender, generation:0, spouse_id:null, children_ids:[], external:true, email:null, bio_birthplace:null, bio_education:null, bio_occupation:null, bio_notes:null } as Member)
+    setOpen(false)
+  }
+
+  if (open) return (
+    <div style={{width:130, borderRadius:10, border:'2px dashed #d97706', background:'#fffbeb', padding:'8px 10px', flexShrink:0}}>
+      <div style={{fontSize:10, color:'#92400e', fontWeight:700, marginBottom:6}}>Agregar datos</div>
+      {[['Nombre', name, setName],['Apellido', surname1, setSurname1]] .map(([l,v,fn]:any) => (
+        <input key={l} placeholder={l} value={v} onChange={(e:any)=>fn(e.target.value)}
+          style={{width:'100%', fontSize:11, padding:'3px 6px', borderRadius:6, border:'1px solid #fbbf24', marginBottom:4, boxSizing:'border-box' as any}}/>
+      ))}
+      <input type="date" value={born} onChange={e=>setBorn(e.target.value)}
+        style={{width:'100%', fontSize:11, padding:'3px 6px', borderRadius:6, border:'1px solid #fbbf24', marginBottom:4, boxSizing:'border-box' as any}}/>
+      <select value={gender} onChange={e=>setGender(e.target.value as 'M'|'F')}
+        style={{width:'100%', fontSize:11, padding:'3px 6px', borderRadius:6, border:'1px solid #fbbf24', marginBottom:6, boxSizing:'border-box' as any}}>
+        <option value="M">Masculino</option>
+        <option value="F">Femenino</option>
+      </select>
+      <div style={{display:'flex', gap:4}}>
+        <button onClick={()=>setOpen(false)} style={{flex:1, fontSize:10, padding:'3px', borderRadius:6, border:'1px solid #e2e8f0', background:'#f1f5f9', cursor:'pointer'}}>✕</button>
+        <button onClick={handleSave} style={{flex:2, fontSize:10, padding:'3px', borderRadius:6, border:'none', background:'#d97706', color:'#fff', cursor:'pointer', fontWeight:700}}>Guardar</button>
+      </div>
+    </div>
+  )
+
   return (
-    <div style={{
-      width:56, height:56, borderRadius:10, border:'2px dashed #94a3b8',
+    <div onClick={()=>onAdd && setOpen(true)} style={{
+      width:80, borderRadius:10, border:'2px dashed #94a3b8',
       background:'#f8fafc', display:'flex', flexDirection:'column',
-      alignItems:'center', justifyContent:'center',
-      color:'#94a3b8', fontSize:18, fontWeight:700, flexShrink:0
+      alignItems:'center', justifyContent:'center', padding:'8px 4px',
+      color:'#94a3b8', fontSize:18, fontWeight:700, flexShrink:0,
+      cursor: onAdd ? 'pointer' : 'default'
     }}>
       <div>?</div>
-      <div style={{fontSize:8, marginTop:1}}>no registrado</div>
+      <div style={{fontSize:8, marginTop:1, textAlign:'center'}}>no registrado</div>
+      {onAdd && <div style={{fontSize:9, color:'#d97706', marginTop:4}}>✏️ editar</div>}
     </div>
   )
 }
 
-function Kids({list, members, onSelect, political=false}: {
-  list:Member[], members:Member[], onSelect:(p:Member)=>void, political?:boolean
+function Kids({list, members, onSelect, political=false, onAddMember}: {
+  list:Member[], members:Member[], onSelect:(p:Member)=>void, political?:boolean, onAddMember?:(m:Member)=>void
 }) {
   if (!list.length) return null
   const color = political ? POLIT_COLOR : BLOOD_COLOR
   if (list.length === 1) return (
     <div style={{display:'flex', flexDirection:'column', alignItems:'center'}}>
       <VLine h={20} color={color}/>
-      <TreeNode person={list[0]} members={members} onSelect={onSelect}/>
+      <TreeNode person={list[0]} members={members} onSelect={onSelect} onAddMember={onAddMember}/>
     </div>
   )
   return (
@@ -181,7 +216,7 @@ function Kids({list, members, onSelect, political=false}: {
               <VLine h={20} color={color}/>
               <div style={{flex:1, height:3, background: i===list.length-1 ? 'transparent' : color}}/>
             </div>
-            <TreeNode person={kid} members={members} onSelect={onSelect}/>
+            <TreeNode person={kid} members={members} onSelect={onSelect} onAddMember={onAddMember}/>
           </div>
         ))}
       </div>
@@ -189,9 +224,9 @@ function Kids({list, members, onSelect, political=false}: {
   )
 }
 
-function Pair({left, right, kids, members, onSelect}: {
+function Pair({left, right, kids, members, onSelect, onAddMember}: {
   left:Member, right:Member|null, kids:Member[],
-  members:Member[], onSelect:(p:Member)=>void
+  members:Member[], onSelect:(p:Member)=>void, onAddMember?:(m:Member)=>void
 }) {
   return (
     <div style={{display:'flex', flexDirection:'column', alignItems:'center'}}>
@@ -202,7 +237,7 @@ function Pair({left, right, kids, members, onSelect}: {
           <MiniCard person={right} onSelect={onSelect}/>
         </>}
       </div>
-      <Kids list={kids} members={members} onSelect={onSelect}/>
+      <Kids list={kids} members={members} onSelect={onSelect} onAddMember={onAddMember}/>
     </div>
   )
 }
@@ -224,8 +259,8 @@ function SpouseWithUnknown({spouse, ownKids, members, onSelect}: {
   )
 }
 
-function TreeNode({person, members, onSelect}: {
-  person:Member, members:Member[], onSelect:(p:Member)=>void
+function TreeNode({person, members, onSelect, onAddMember}: {
+  person:Member, members:Member[], onSelect:(p:Member)=>void, onAddMember?:(m:Member)=>void
 }) {
   const marriages = getMarriages(person, members)
 
@@ -242,12 +277,12 @@ function TreeNode({person, members, onSelect}: {
             <div style={{width:20, height:3, background:MARRY_COLOR, alignSelf:'flex-start', marginTop:28, flexShrink:0}}/>
             <div style={{display:'flex', flexDirection:'column', alignItems:'center'}}>
               <MiniCard person={person} onSelect={onSelect}/>
-              <Kids list={children} members={members} onSelect={onSelect}/>
+              <Kids list={children} members={members} onSelect={onSelect} onAddMember={onAddMember}/>
             </div>
           </> : <>
             <div style={{display:'flex', flexDirection:'column', alignItems:'center'}}>
               <MiniCard person={person} onSelect={onSelect}/>
-              <Kids list={children} members={members} onSelect={onSelect}/>
+              <Kids list={children} members={members} onSelect={onSelect} onAddMember={onAddMember}/>
             </div>
             <div style={{width:20, height:3, background:MARRY_COLOR, alignSelf:'flex-start', marginTop:28, flexShrink:0}}/>
             <SpouseWithUnknown spouse={spouse} ownKids={spouseOwnChildren} members={members} onSelect={onSelect}/>
@@ -258,7 +293,7 @@ function TreeNode({person, members, onSelect}: {
 
     const left  = !spouse || person.gender === 'M' ? person : spouse
     const right = (left === person ? spouse : person) ?? null
-    return <Pair left={left} right={right} kids={children} members={members} onSelect={onSelect}/>
+    return <Pair left={left} right={right} kids={children} members={members} onSelect={onSelect} onAddMember={onAddMember}/>
   }
 
   // ── MULTIPLE MARRIAGES ────────────────────────────────────────────────────
@@ -286,27 +321,17 @@ function TreeNode({person, members, onSelect}: {
   return (
     <div style={{display:'flex', alignItems:'flex-start', gap:24}}>
 
-      {/* PAIR 1: [?]——[PrevSpouse]——[Persona] */}
+      {/* PAIR 1: [?/PrevSpouse]——[Persona] con hijos colgando del punto medio */}
       <div style={{display:'flex', flexDirection:'column', alignItems:'center'}}>
         <div style={{display:'flex', alignItems:'center'}}>
-          {prev.spouseOwnChildren.length > 0 && (
-            <>
-              <UnknownParent/>
-              <div style={{width:20, height:3, background:MARRY_COLOR, flexShrink:0}}/>
-            </>
-          )}
-          {prev.spouse && (
-            <>
-              <MiniCard person={prev.spouse} onSelect={onSelect}/>
-              <div style={{width:20, height:3, background:MARRY_COLOR, flexShrink:0}}/>
-            </>
-          )}
+          {prev.spouse
+            ? <MiniCard person={prev.spouse} onSelect={onSelect}/>
+            : <UnknownParent onAdd={onAddMember}/>
+          }
+          <div style={{width:20, height:3, background:MARRY_COLOR, flexShrink:0}}/>
           <MiniCard person={person} onSelect={onSelect}/>
         </div>
-        {prev.spouseOwnChildren.length > 0 && (
-          <Kids list={prev.spouseOwnChildren} members={members} onSelect={onSelect} political={true}/>
-        )}
-        <Kids list={prev.children} members={members} onSelect={onSelect}/>
+        <Kids list={prev.children} members={members} onSelect={onSelect} onAddMember={onAddMember}/>
       </div>
 
       {/* PAIR 2: [GhostCard]——[CurrSpouse] */}
@@ -317,7 +342,7 @@ function TreeNode({person, members, onSelect}: {
             <div style={{width:20, height:3, background:MARRY_COLOR, flexShrink:0}}/>
             <MiniCard person={curr.spouse} onSelect={onSelect}/>
           </div>
-          <Kids list={curr.children} members={members} onSelect={onSelect}/>
+          <Kids list={curr.children} members={members} onSelect={onSelect} onAddMember={onAddMember}/>
         </div>
       )}
 
@@ -329,10 +354,10 @@ function TreeNode({person, members, onSelect}: {
             <div style={{width:20, height:3, background:MARRY_COLOR, flexShrink:0}}/>
             {currSpouseOtherParent
               ? <MiniCard person={currSpouseOtherParent} onSelect={onSelect}/>
-              : <UnknownParent/>
+              : <UnknownParent onAdd={onAddMember}/>
             }
           </div>
-          <Kids list={curr.spouseOwnChildren} members={members} onSelect={onSelect}/>
+          <Kids list={curr.spouseOwnChildren} members={members} onSelect={onSelect} onAddMember={onAddMember}/>
         </div>
       )}
 
@@ -762,7 +787,7 @@ export default function Home() {
       <div style={{padding:'16px',maxWidth:1100,margin:'0 auto'}}>
         {view==='tree'&&<div style={{overflowX:'auto',paddingBottom:16}}>
           <div style={{display:'flex',gap:48,justifyContent:'center',padding:'10px 16px',minWidth:'max-content'}}>
-            {coupleRoots.map(r=><TreeNode key={r.id} person={r} members={members} onSelect={setSelected}/>)}
+            {coupleRoots.map(r=><TreeNode key={r.id} person={r} members={members} onSelect={setSelected} onAddMember={handleNewMember}/>)}
           </div>
           <div style={{textAlign:'center',marginTop:12,fontSize:11,color:'#94a3b8'}}>
             <span style={{color:'#d97706',fontWeight:700}}>borde dorado</span> = línea de sangre &nbsp;·&nbsp; <span style={{fontWeight:700}}>★</span> = familiar político &nbsp;·&nbsp; † fallecido &nbsp;·&nbsp; <span style={{color:'#d97706'}}>——</span> matrimonio &nbsp;·&nbsp; Toca para ver detalles
@@ -797,4 +822,3 @@ export default function Home() {
     </div>
   )
 }
-```
