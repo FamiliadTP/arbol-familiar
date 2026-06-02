@@ -80,7 +80,7 @@ function Chip({p}:{p:Member}){
   return <div style={{background:p.gender==='M'?'#dbeafe':'#fce7f3',color:p.gender==='M'?'#1d4ed8':'#be185d',borderRadius:20,padding:'4px 10px',fontSize:12,fontWeight:600}}>{p.name} {p.surname1}</div>
 }
 
-function MiniCard({person,onSelect}:{person:Member;onSelect:(p:Member)=>void}){
+function MiniCard({person,onSelect,collapsed,onToggleCollapse}:{person:Member;onSelect:(p:Member)=>void;collapsed?:boolean;onToggleCollapse?:()=>void}){
   const isBlood = !person.external
   const bg = isBlood ? (person.gender==='M' ? '#dbeafe' : '#fce7f3') : (person.gender==='M' ? '#f8fafc' : '#fdf4ff')
   const border = isBlood ? '#d97706' : '#94a3b8'
@@ -88,14 +88,23 @@ function MiniCard({person,onSelect}:{person:Member;onSelect:(p:Member)=>void}){
   const borderWidth = isBlood ? '3px' : '1.5px'
   const shadow = isBlood ? '0 2px 10px rgba(217,119,6,0.3)' : '0 1px 4px rgba(0,0,0,0.06)'
   return (
-    <div onClick={()=>onSelect(person)} style={{background:bg,border:`${borderWidth} ${borderStyle} ${border}`,borderRadius:12,padding:'10px 12px',cursor:'pointer',minWidth:100,textAlign:'center',opacity:person.died?0.75:1,boxShadow:shadow,transition:'transform 0.15s',position:'relative'}}
-      onMouseEnter={e=>(e.currentTarget.style.transform='translateY(-2px)')}
-      onMouseLeave={e=>(e.currentTarget.style.transform='')}>
-      {person.died&&<div style={{position:'absolute',top:-6,right:-6,fontSize:11,background:'#64748b',color:'#fff',borderRadius:'50%',width:18,height:18,display:'flex',alignItems:'center',justifyContent:'center'}}>†</div>}
-      {person.external&&<div style={{position:'absolute',top:-6,left:-6,fontSize:10,background:'#f59e0b',color:'#fff',borderRadius:'50%',width:18,height:18,display:'flex',alignItems:'center',justifyContent:'center'}}>★</div>}
-      <Avatar p={person} size={34}/>
-      <div style={{fontSize:11,fontWeight:700,color:'#1e293b',marginTop:4,lineHeight:1.2}}>{person.name}</div>
-      <div style={{fontSize:10,color:'#64748b',marginTop:1}}>{person.born?.slice(0,4)}{person.died?`–${person.died.slice(0,4)}`:''}</div>
+    <div style={{position:'relative'}}>
+      <div onClick={()=>onSelect(person)} style={{background:bg,border:`${borderWidth} ${borderStyle} ${border}`,borderRadius:12,padding:'10px 12px',cursor:'pointer',minWidth:100,textAlign:'center',opacity:person.died?0.75:1,boxShadow:shadow,transition:'transform 0.15s',position:'relative'}}
+        onMouseEnter={e=>(e.currentTarget.style.transform='translateY(-2px)')}
+        onMouseLeave={e=>(e.currentTarget.style.transform='')}>
+        {person.died&&<div style={{position:'absolute',top:-6,right:-6,fontSize:11,background:'#64748b',color:'#fff',borderRadius:'50%',width:18,height:18,display:'flex',alignItems:'center',justifyContent:'center'}}>†</div>}
+        {person.external&&<div style={{position:'absolute',top:-6,left:-6,fontSize:10,background:'#f59e0b',color:'#fff',borderRadius:'50%',width:18,height:18,display:'flex',alignItems:'center',justifyContent:'center'}}>★</div>}
+        <Avatar p={person} size={34}/>
+        <div style={{fontSize:11,fontWeight:700,color:'#1e293b',marginTop:4,lineHeight:1.2}}>{person.name}</div>
+        <div style={{fontSize:10,color:'#64748b',marginTop:1}}>{person.born?.slice(0,4)}{person.died?`–${person.died.slice(0,4)}`:''}</div>
+      </div>
+      {onToggleCollapse && (
+        <button
+          onClick={e=>{e.stopPropagation();onToggleCollapse()}}
+          style={{position:'absolute',bottom:-10,left:'50%',transform:'translateX(-50%)',width:20,height:20,borderRadius:'50%',background:'#475569',border:'none',color:'#fff',fontSize:11,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',zIndex:10,lineHeight:1}}>
+          {collapsed ? '▼' : '▲'}
+        </button>
+      )}
     </div>
   )
 }
@@ -146,7 +155,6 @@ function VLine({h, color=BLOOD_COLOR}: {h:number, color?:string}) {
   return <div style={{width:3, height:h, background:color, flexShrink:0, alignSelf:'center'}}/>
 }
 
-// context: which person's bio_notes to patch, and which marriage index (null = spouse_own_children_ids of that index)
 function UnknownParent({ onAdd, patchContext }: {
   onAdd?: (m: Member) => void,
   patchContext?: { person: Member, marriageIndex: number, field: 'spouse_id' | 'spouse_own_children_ids' }
@@ -166,28 +174,20 @@ function UnknownParent({ onAdd, patchContext }: {
       generation: patchContext?.person.generation ?? 3,
       spouse_id:null, children_ids:[], external:true, email:null,
       bio_birthplace:null, bio_education:null, bio_occupation:null, bio_notes:null }
-
-    // 1. Insert new member via RPC
     await supabase.rpc('insert_member', { p_member: {
       id, name, surname1, surname2:'', born, died:'', gender,
       generation: patchContext?.person.generation ?? 3,
       spouse_id:'', children_ids:[], external:true, email:'',
       bio_birthplace:'', bio_education:'', bio_occupation:'', bio_notes:''
     }})
-
-    // 2. Patch the bio_notes of the context person via RPC
     if (patchContext) {
       const { person, marriageIndex, field } = patchContext
       let bioNotes: any[] = []
       try { bioNotes = JSON.parse(person.bio_notes ?? '[]') } catch {}
       if (!Array.isArray(bioNotes)) bioNotes = []
       while (bioNotes.length <= marriageIndex) bioNotes.push({ spouse_id: null, children_ids: [] })
-      if (field === 'spouse_id') {
-        bioNotes[marriageIndex].spouse_id = id
-      } else {
-        bioNotes[marriageIndex].spouse_own_partner_id = id
-      }
-      const updatedPerson = {...person, bio_notes: JSON.stringify(bioNotes)}
+      if (field === 'spouse_id') { bioNotes[marriageIndex].spouse_id = id }
+      else { bioNotes[marriageIndex].spouse_own_partner_id = id }
       await supabase.rpc('upsert_member', { p_member: {
         id: person.id, name: person.name, surname1: person.surname1,
         surname2: person.surname2 ?? '', born: person.born, died: person.died ?? '',
@@ -198,10 +198,7 @@ function UnknownParent({ onAdd, patchContext }: {
         bio_occupation: person.bio_occupation ?? '', bio_notes: JSON.stringify(bioNotes)
       }})
     }
-
-    setSaving(false)
-    setOpen(false)
-    onAdd?.(newMember)
+    setSaving(false); setOpen(false); onAdd?.(newMember)
   }
 
   if (open) return (
@@ -226,21 +223,17 @@ function UnknownParent({ onAdd, patchContext }: {
       </div>
     </div>
   )
-
   return (
-    <div onClick={()=>setOpen(true)} style={{
-      width:80, borderRadius:10, border:'2px dashed #94a3b8',
-      background:'#f8fafc', display:'flex', flexDirection:'column',
-      alignItems:'center', justifyContent:'center', padding:'8px 4px',
-      color:'#94a3b8', fontSize:18, fontWeight:700, flexShrink:0,
-      cursor:'pointer'
-    }}>
+    <div onClick={()=>setOpen(true)} style={{width:80, borderRadius:10, border:'2px dashed #94a3b8', background:'#f8fafc', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'8px 4px', color:'#94a3b8', fontSize:18, fontWeight:700, flexShrink:0, cursor:'pointer'}}>
       <div>?</div>
       <div style={{fontSize:8, marginTop:1, textAlign:'center'}}>no registrado</div>
       <div style={{fontSize:9, color:'#d97706', marginTop:4}}>✏️ editar</div>
     </div>
   )
 }
+
+// ── COLLAPSE CONTEXT ─────────────────────────────────────────────────────────
+const CollapseContext = React.createContext<{collapsed:Set<string>, toggle:(id:string)=>void}>({collapsed:new Set(), toggle:()=>{}})
 
 function Kids({list, members, onSelect, political=false, onAddMember}: {
   list:Member[], members:Member[], onSelect:(p:Member)=>void, political?:boolean, onAddMember?:(m:Member)=>void
@@ -276,16 +269,22 @@ function Pair({left, right, kids, members, onSelect, onAddMember}: {
   left:Member, right:Member|null, kids:Member[],
   members:Member[], onSelect:(p:Member)=>void, onAddMember?:(m:Member)=>void
 }) {
+  const { collapsed, toggle } = React.useContext(CollapseContext)
+  const nodeId = left.id + (right?.id ?? '')
+  const isCollapsed = collapsed.has(nodeId)
+  const hasKids = kids.length > 0
   return (
     <div style={{display:'flex', flexDirection:'column', alignItems:'center'}}>
       <div style={{display:'flex', alignItems:'center'}}>
-        <MiniCard person={left} onSelect={onSelect}/>
+        <MiniCard person={left} onSelect={onSelect}
+          collapsed={isCollapsed}
+          onToggleCollapse={hasKids ? ()=>toggle(nodeId) : undefined}/>
         {right && <>
           <div style={{width:20, height:3, background:MARRY_COLOR, flexShrink:0}}/>
           <MiniCard person={right} onSelect={onSelect}/>
         </>}
       </div>
-      <Kids list={kids} members={members} onSelect={onSelect} onAddMember={onAddMember}/>
+      {!isCollapsed && <Kids list={kids} members={members} onSelect={onSelect} onAddMember={onAddMember}/>}
     </div>
   )
 }
@@ -311,11 +310,10 @@ function TreeNode({person, members, onSelect, onAddMember}: {
   person:Member, members:Member[], onSelect:(p:Member)=>void, onAddMember?:(m:Member)=>void
 }) {
   const marriages = getMarriages(person, members)
+  const { collapsed, toggle } = React.useContext(CollapseContext)
 
-  // ── SINGLE MARRIAGE ──────────────────────────────────────────────────────
   if (marriages.length === 1) {
     const {spouse, children, spouseOwnChildren} = marriages[0]
-
     if (spouseOwnChildren.length > 0 && spouse) {
       const spouseIsLeft = spouse.gender === 'M'
       return (
@@ -338,38 +336,26 @@ function TreeNode({person, members, onSelect, onAddMember}: {
         </div>
       )
     }
-
     const left  = !spouse || person.gender === 'M' ? person : spouse
     const right = (left === person ? spouse : person) ?? null
     return <Pair left={left} right={right} kids={children} members={members} onSelect={onSelect} onAddMember={onAddMember}/>
   }
 
-  // ── MULTIPLE MARRIAGES ────────────────────────────────────────────────────
+  // ── MULTIPLE MARRIAGES ──────────────────────────────────────────────────
   const prev = marriages[0]
   const curr = marriages[marriages.length - 1]
-
   const currSpouseOtherParent = curr.spouseOwnChildren.length > 0 && curr.spouse
-    ? members.find(m =>
-        m.id !== curr.spouse!.id &&
-        curr.spouseOwnChildren.every(c => m.children_ids?.includes(c.id))
-      ) ?? null
+    ? members.find(m => m.id !== curr.spouse!.id && curr.spouseOwnChildren.every(c => m.children_ids?.includes(c.id))) ?? null
     : null
-
   const GhostCard = () => (
     <div style={{position:'relative', opacity:0.45, cursor:'pointer'}} onClick={()=>onSelect(person)}>
       <MiniCard person={person} onSelect={onSelect}/>
-      <div style={{
-        position:'absolute', bottom:-10, left:'50%', transform:'translateX(-50%)',
-        background:'#475569', color:'#fff', fontSize:9, fontWeight:700,
-        borderRadius:10, padding:'2px 6px', whiteSpace:'nowrap'
-      }}>= misma</div>
+      <div style={{position:'absolute', bottom:-10, left:'50%', transform:'translateX(-50%)', background:'#475569', color:'#fff', fontSize:9, fontWeight:700, borderRadius:10, padding:'2px 6px', whiteSpace:'nowrap'}}>= misma</div>
     </div>
   )
 
   return (
     <div style={{display:'flex', alignItems:'flex-start', gap:24}}>
-
-      {/* PAIR 1 prev spouse own children: [Julián/NN]——[PrevSpouseGhost] a la izquierda */}
       {prev.spouseOwnChildren.length > 0 && prev.spouse && (()=>{
         let bioNotes: any[] = []
         try { bioNotes = JSON.parse(person.bio_notes ?? '[]') } catch {}
@@ -395,7 +381,6 @@ function TreeNode({person, members, onSelect, onAddMember}: {
         )
       })()}
 
-      {/* PAIR 1: [?/PrevSpouse]——[Persona] con hijos colgando del punto medio */}
       <div style={{display:'flex', flexDirection:'column', alignItems:'center'}}>
         <div style={{display:'flex', alignItems:'center'}}>
           {prev.spouse
@@ -408,7 +393,6 @@ function TreeNode({person, members, onSelect, onAddMember}: {
         <Kids list={prev.children} members={members} onSelect={onSelect} onAddMember={onAddMember}/>
       </div>
 
-      {/* PAIR 2: [GhostCard]——[CurrSpouse o ?] */}
       {(curr.spouse || curr.children.length > 0) && (
         <div style={{display:'flex', flexDirection:'column', alignItems:'center'}}>
           <div style={{display:'flex', alignItems:'center'}}>
@@ -423,7 +407,6 @@ function TreeNode({person, members, onSelect, onAddMember}: {
         </div>
       )}
 
-      {/* Hijos propios del cónyuge actual con otra pareja */}
       {curr.spouseOwnChildren.length > 0 && curr.spouse && (
         <div style={{display:'flex', flexDirection:'column', alignItems:'center'}}>
           <div style={{display:'flex', alignItems:'center'}}>
@@ -437,7 +420,6 @@ function TreeNode({person, members, onSelect, onAddMember}: {
           <Kids list={curr.spouseOwnChildren} members={members} onSelect={onSelect} onAddMember={onAddMember}/>
         </div>
       )}
-
     </div>
   )
 }
@@ -628,6 +610,7 @@ function AdminPanel({ onChangePassword, onImportExcel, onAddMember, importing, m
   const [newPass, setNewPass] = useState('')
   const [newPass2, setNewPass2] = useState('')
   const [passError, setPassError] = useState('')
+  const [passSuccess, setPassSuccess] = useState('')
   const [admins, setAdmins] = useState<any[]>([])
   const [newAdmin, setNewAdmin] = useState({username:'',password:'',role:'family',family_branch:''})
   const fileRef = useRef<HTMLInputElement>(null)
@@ -640,11 +623,12 @@ function AdminPanel({ onChangePassword, onImportExcel, onAddMember, importing, m
   useEffect(()=>{ if(tab==='admins') loadAdmins() },[tab])
 
   const handleChangePass = () => {
-    if (newPass !== newPass2) { setPassError('Las contraseñas no coinciden'); return }
-    if (newPass.length < 6) { setPassError('Mínimo 6 caracteres'); return }
-    setPassError('')
+    if (newPass !== newPass2) { setPassError('Las contraseñas no coinciden'); setPassSuccess(''); return }
+    if (newPass.length < 6) { setPassError('Mínimo 6 caracteres'); setPassSuccess(''); return }
+    setPassError(''); setPassSuccess('')
     onChangePassword(oldPass, newPass)
     setOldPass(''); setNewPass(''); setNewPass2('')
+    setPassSuccess('✅ Contraseña actualizada')
   }
 
   const handleAddAdmin = async () => {
@@ -667,29 +651,15 @@ function AdminPanel({ onChangePassword, onImportExcel, onAddMember, importing, m
   const handleDownload = async () => {
     const XLSX = await import('xlsx')
     const rows = members.map(m => ({
-      id: m.id,
-      name: m.name,
-      surname1: m.surname1,
-      surname2: m.surname2,
-      born: m.born,
-      died: m.died ?? '',
-      gender: m.gender,
-      generation: m.generation,
-      spouse_id: m.spouse_id ?? '',
-      children_ids: (m.children_ids ?? []).join(','),
-      external: m.external ? 'true' : 'false',
-      email: m.email ?? '',
-      bio_birthplace: m.bio_birthplace ?? '',
-      bio_education: m.bio_education ?? '',
-      bio_occupation: m.bio_occupation ?? '',
-      bio_notes: m.bio_notes ?? '',
+      id: m.id, name: m.name, surname1: m.surname1, surname2: m.surname2,
+      born: m.born, died: m.died ?? '', gender: m.gender, generation: m.generation,
+      spouse_id: m.spouse_id ?? '', children_ids: (m.children_ids ?? []).join(','),
+      external: m.external ? 'true' : 'false', email: m.email ?? '',
+      bio_birthplace: m.bio_birthplace ?? '', bio_education: m.bio_education ?? '',
+      bio_occupation: m.bio_occupation ?? '', bio_notes: m.bio_notes ?? '',
     }))
     const ws = XLSX.utils.json_to_sheet(rows)
-    // Column widths
-    ws['!cols'] = [
-      {wch:12},{wch:14},{wch:16},{wch:16},{wch:12},{wch:12},{wch:8},{wch:10},
-      {wch:14},{wch:30},{wch:8},{wch:22},{wch:20},{wch:20},{wch:20},{wch:40}
-    ]
+    ws['!cols'] = [{wch:12},{wch:14},{wch:16},{wch:16},{wch:12},{wch:12},{wch:8},{wch:10},{wch:14},{wch:30},{wch:8},{wch:22},{wch:20},{wch:20},{wch:20},{wch:40}]
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Miembros')
     XLSX.writeFile(wb, 'arbol_familiar.xlsx')
@@ -708,12 +678,8 @@ function AdminPanel({ onChangePassword, onImportExcel, onAddMember, importing, m
       </div>
       {tab==='tools'&&(
         <div style={{display:'flex',flexDirection:'column',gap:10}}>
-          <button onClick={onAddMember} style={{padding:'12px 16px',background:'#16a34a',color:'#fff',border:'none',borderRadius:10,cursor:'pointer',fontWeight:700,fontSize:14,textAlign:'left'}}>
-            ➕ Agregar nueva persona
-          </button>
-          <button onClick={handleDownload} style={{padding:'12px 16px',background:'#0369a1',color:'#fff',border:'none',borderRadius:10,cursor:'pointer',fontWeight:700,fontSize:14,textAlign:'left'}}>
-            📥 Descargar datos Excel
-          </button>
+          <button onClick={onAddMember} style={{padding:'12px 16px',background:'#16a34a',color:'#fff',border:'none',borderRadius:10,cursor:'pointer',fontWeight:700,fontSize:14,textAlign:'left'}}>➕ Agregar nueva persona</button>
+          <button onClick={handleDownload} style={{padding:'12px 16px',background:'#0369a1',color:'#fff',border:'none',borderRadius:10,cursor:'pointer',fontWeight:700,fontSize:14,textAlign:'left'}}>📥 Descargar datos Excel</button>
           <div style={{background:'#fff',borderRadius:10,padding:14,border:'2px dashed #cbd5e1'}}>
             <div style={{fontWeight:700,fontSize:13,marginBottom:6}}>📊 Cargar datos desde Excel</div>
             <div style={{fontSize:12,color:'#64748b',marginBottom:10}}>Sube el archivo Excel con los datos de tu familia.</div>
@@ -734,6 +700,7 @@ function AdminPanel({ onChangePassword, onImportExcel, onAddMember, importing, m
             </label>
           ))}
           {passError&&<div style={{fontSize:12,color:'#dc2626'}}>{passError}</div>}
+          {passSuccess&&<div style={{fontSize:12,color:'#16a34a'}}>{passSuccess}</div>}
           <button onClick={handleChangePass} style={{padding:'10px',background:'#1e293b',color:'#fff',border:'none',borderRadius:8,cursor:'pointer',fontWeight:700,fontSize:13,marginTop:4}}>💾 Cambiar contraseña</button>
         </div>
       )}
@@ -807,17 +774,14 @@ function NewMemberModal({onClose,onSave}:{onClose:()=>void;onSave:(m:Member)=>vo
           <label style={{display:'flex',flexDirection:'column',gap:4,fontSize:12,color:'#64748b',fontWeight:600}}>
             Género *
             <select value={form.gender??'M'} onChange={e=>set('gender',e.target.value)} style={{padding:'8px 10px',borderRadius:8,border:'2px solid #e2e8f0',fontSize:13,outline:'none'}}>
-              <option value="M">Masculino</option>
-              <option value="F">Femenino</option>
+              <option value="M">Masculino</option><option value="F">Femenino</option>
             </select>
           </label>
           <label style={{display:'flex',flexDirection:'column',gap:4,fontSize:12,color:'#64748b',fontWeight:600}}>
             Generación *
             <select value={form.generation??3} onChange={e=>set('generation',parseInt(e.target.value))} style={{padding:'8px 10px',borderRadius:8,border:'2px solid #e2e8f0',fontSize:13,outline:'none'}}>
-              <option value={1}>1ª - Abuelos</option>
-              <option value={2}>2ª - Padres</option>
-              <option value={3}>3ª - Hijos</option>
-              <option value={4}>4ª - Nietos</option>
+              <option value={1}>1ª - Abuelos</option><option value={2}>2ª - Padres</option>
+              <option value={3}>3ª - Hijos</option><option value={4}>4ª - Nietos</option>
             </select>
           </label>
           <label style={{display:'flex',alignItems:'center',gap:8,fontSize:12,color:'#64748b',fontWeight:600,gridColumn:'1 / -1'}}>
@@ -837,19 +801,19 @@ function NewMemberModal({onClose,onSave}:{onClose:()=>void;onSave:(m:Member)=>vo
   )
 }
 
-
-// Helper: convierte Member a objeto compatible con RPC
 function memberToRpc(m: Member) {
   return {
     id: m.id, name: m.name, surname1: m.surname1, surname2: m.surname2 ?? '',
     born: m.born, died: m.died ?? '', gender: m.gender,
     generation: m.generation, spouse_id: m.spouse_id ?? '',
-    children_ids: m.children_ids ?? [],
-    external: m.external, email: m.email ?? '',
+    children_ids: m.children_ids ?? [], external: m.external, email: m.email ?? '',
     bio_birthplace: m.bio_birthplace ?? '', bio_education: m.bio_education ?? '',
     bio_occupation: m.bio_occupation ?? '', bio_notes: m.bio_notes ?? ''
   }
 }
+
+// Need React import for createContext
+import React from 'react'
 
 export default function Home() {
   const [members, setMembers] = useState<Member[]>([])
@@ -868,21 +832,48 @@ export default function Home() {
   const [toast, setToast] = useState<{msg:string;type:string}|null>(null)
   const [usingDemo, setUsingDemo] = useState(false)
   const [importing, setImporting] = useState(false)
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+  // Pinch-to-zoom state
+  const [scale, setScale] = useState(1)
+  const treeRef = useRef<HTMLDivElement>(null)
+  const lastDist = useRef<number|null>(null)
 
   const isAdmin = !!adminUser
   const isSuper = adminUser?.role === 'super'
   const showToast = (msg:string, type='success') => { setToast({msg,type}); setTimeout(()=>setToast(null),3500) }
 
+  const toggleCollapse = (id:string) => {
+    setCollapsed(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
+
+  // Pinch-to-zoom handlers
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 2) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX
+      const dy = e.touches[0].clientY - e.touches[1].clientY
+      lastDist.current = Math.sqrt(dx*dx + dy*dy)
+    }
+  }
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (e.touches.length === 2 && lastDist.current !== null) {
+      e.preventDefault()
+      const dx = e.touches[0].clientX - e.touches[1].clientX
+      const dy = e.touches[0].clientY - e.touches[1].clientY
+      const dist = Math.sqrt(dx*dx + dy*dy)
+      const delta = dist / lastDist.current
+      setScale(s => Math.min(2, Math.max(0.3, s * delta)))
+      lastDist.current = dist
+    }
+  }
+  const handleTouchEnd = () => { lastDist.current = null }
+
   async function handleLogin() {
     if (!loginUsername || !loginPassword) return
     setLoginLoading(true); setLoginError('')
-    const { data, error } = await supabase
-      .from('admins')
-      .select('username, role, family_branch')
-      .eq('username', loginUsername)
-      .eq('password_hash', `crypt('${loginPassword}', password_hash)`)
-      .maybeSingle()
-    // Use RPC for secure password check
     const { data: rpcData } = await supabase.rpc('check_admin_password', {
       p_username: loginUsername,
       p_password: loginPassword
@@ -917,8 +908,7 @@ export default function Home() {
     else if(isAdmin){
       const{error}=await supabase.rpc('upsert_member', {p_member: memberToRpc(updated)})
       if(error){showToast('❌ Error al guardar','error');console.error(error);return}
-      showToast('✅ Cambios guardados')
-      await loadData()
+      showToast('✅ Cambios guardados'); await loadData()
     }
     else{ const orig=members.find(m=>m.id===updated.id)!; const changes:Partial<Member>={}; (Object.keys(updated) as (keyof Member)[]).forEach(k=>{if(updated[k]!==orig[k])(changes as any)[k]=updated[k]}); const{error}=await supabase.from('pending_edits').insert({member_id:updated.id,proposed_by:'visitante',changes,note,status:'pending'}); if(error){showToast('❌ Error al enviar','error');return}; showToast('📤 Propuesta enviada a administradores','info') }
     setEditTarget(null); setSelected(null)
@@ -931,8 +921,7 @@ export default function Home() {
       if(error){showToast('❌ Error al guardar','error');console.error(error);return}
       showToast('✅ Persona agregada')
     }
-    await loadData()
-    setShowNewMember(false)
+    await loadData(); setShowNewMember(false)
   }
 
   async function handleImportExcel(file:File){
@@ -945,11 +934,8 @@ export default function Home() {
       const rows:any[]=XLSX.utils.sheet_to_json(ws,{defval:''})
       const dataRows=rows.filter((r:any)=>r.id&&r.id!=='id'&&!String(r.id).includes('Obligatorio')&&!String(r.id).includes('Opcional'))
       const mapped:Member[]=dataRows.map((r:any)=>({
-        id:String(r.id||'').trim(),
-        name:String(r.name||'').trim(),
-        surname1:String(r.surname1||'').trim(),
-        surname2:String(r.surname2||'').trim(),
-        born:String(r.born||'').trim(),
+        id:String(r.id||'').trim(), name:String(r.name||'').trim(), surname1:String(r.surname1||'').trim(),
+        surname2:String(r.surname2||'').trim(), born:String(r.born||'').trim(),
         died:r.died?String(r.died).trim():null,
         gender:(String(r.gender||'M').trim().toUpperCase()==='F'?'F':'M') as 'M'|'F',
         generation:parseInt(String(r.generation||'1'))||1,
@@ -964,11 +950,7 @@ export default function Home() {
       })).filter((m:Member)=>m.id&&m.name&&m.born)
       if(!mapped.length){showToast('❌ No se encontraron datos válidos','error');setImporting(false);return}
       if(usingDemo){ setMembers(mapped); setUsingDemo(false); showToast(`✅ ${mapped.length} personas cargadas`) }
-      else{
-        for(const m of mapped){ await supabase.rpc('upsert_member', {p_member: memberToRpc(m)}) }
-        await loadData()
-        showToast(`✅ ${mapped.length} personas importadas`)
-      }
+      else{ for(const m of mapped){ await supabase.rpc('upsert_member', {p_member: memberToRpc(m)}) }; await loadData(); showToast(`✅ ${mapped.length} personas importadas`) }
     } catch(e){ console.error(e); showToast('❌ Error al leer el archivo','error') }
     setImporting(false)
   }
@@ -978,15 +960,9 @@ export default function Home() {
 
   async function handleChangePassword(oldPass:string,newPass:string){
     if (!adminUser) return
-    const { data } = await supabase.rpc('check_admin_password', {
-      p_username: adminUser.username,
-      p_password: oldPass
-    })
+    const { data } = await supabase.rpc('check_admin_password', { p_username: adminUser.username, p_password: oldPass })
     if (!data || data.length === 0) { showToast('❌ Contraseña actual incorrecta','error'); return }
-    const { error } = await supabase.rpc('update_admin_password', {
-      p_username: adminUser.username,
-      p_new_password: newPass
-    })
+    const { error } = await supabase.rpc('update_admin_password', { p_username: adminUser.username, p_new_password: newPass })
     if (error) { showToast('❌ Error al cambiar contraseña','error'); return }
     showToast('✅ Contraseña actualizada')
   }
@@ -1020,14 +996,33 @@ export default function Home() {
       </div>
 
       <div style={{padding:'16px',maxWidth:1100,margin:'0 auto'}}>
-        {view==='tree'&&<div style={{overflowX:'auto',paddingBottom:16}}>
-          <div style={{display:'flex',gap:48,justifyContent:'center',padding:'10px 16px',minWidth:'max-content'}}>
-            {coupleRoots.map(r=><TreeNode key={r.id} person={r} members={members} onSelect={setSelected} onAddMember={async(m)=>{await handleNewMember(m); await loadData()}}/>)}
+        {view==='tree'&&(
+          <div>
+            <div style={{display:'flex',justifyContent:'flex-end',gap:8,marginBottom:8}}>
+              <button onClick={()=>setScale(s=>Math.min(2,s+0.1))} style={{padding:'4px 10px',borderRadius:6,border:'1px solid #e2e8f0',background:'#fff',cursor:'pointer',fontSize:16}}>+</button>
+              <button onClick={()=>setScale(1)} style={{padding:'4px 10px',borderRadius:6,border:'1px solid #e2e8f0',background:'#fff',cursor:'pointer',fontSize:12}}>{Math.round(scale*100)}%</button>
+              <button onClick={()=>setScale(s=>Math.max(0.3,s-0.1))} style={{padding:'4px 10px',borderRadius:6,border:'1px solid #e2e8f0',background:'#fff',cursor:'pointer',fontSize:16}}>−</button>
+              <button onClick={()=>setCollapsed(new Set())} style={{padding:'4px 10px',borderRadius:6,border:'1px solid #e2e8f0',background:'#fff',cursor:'pointer',fontSize:12}}>Expandir todo</button>
+            </div>
+            <div
+              ref={treeRef}
+              style={{overflowX:'auto',paddingBottom:16}}
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove as any}
+              onTouchEnd={handleTouchEnd}>
+              <div style={{transform:`scale(${scale})`,transformOrigin:'top center',transition:'transform 0.1s'}}>
+                <CollapseContext.Provider value={{collapsed, toggle:toggleCollapse}}>
+                  <div style={{display:'flex',gap:48,justifyContent:'center',padding:'10px 16px',minWidth:'max-content'}}>
+                    {coupleRoots.map(r=><TreeNode key={r.id} person={r} members={members} onSelect={setSelected} onAddMember={async(m)=>{await handleNewMember(m); await loadData()}}/>)}
+                  </div>
+                </CollapseContext.Provider>
+              </div>
+            </div>
+            <div style={{textAlign:'center',marginTop:12,fontSize:11,color:'#94a3b8'}}>
+              <span style={{color:'#d97706',fontWeight:700}}>borde dorado</span> = línea de sangre &nbsp;·&nbsp; <span style={{fontWeight:700}}>★</span> = familiar político &nbsp;·&nbsp; † fallecido &nbsp;·&nbsp; <span style={{color:'#d97706'}}>——</span> matrimonio &nbsp;·&nbsp; Toca ▲ para colapsar rama
+            </div>
           </div>
-          <div style={{textAlign:'center',marginTop:12,fontSize:11,color:'#94a3b8'}}>
-            <span style={{color:'#d97706',fontWeight:700}}>borde dorado</span> = línea de sangre &nbsp;·&nbsp; <span style={{fontWeight:700}}>★</span> = familiar político &nbsp;·&nbsp; † fallecido &nbsp;·&nbsp; <span style={{color:'#d97706'}}>——</span> matrimonio &nbsp;·&nbsp; Toca para ver detalles
-          </div>
-        </div>}
+        )}
         {view==='list'&&<ListView members={members} onSelect={setSelected}/>}
         {view==='birthdays'&&<BirthdayView members={members} onSelect={setSelected}/>}
         {view==='stats'&&<StatsView members={members}/>}
@@ -1044,15 +1039,11 @@ export default function Home() {
           <div style={{fontWeight:800,fontSize:17,marginBottom:16}}>🔐 Acceso administrador</div>
           <label style={{display:'flex',flexDirection:'column',gap:4,fontSize:12,color:'#64748b',fontWeight:600,marginBottom:10}}>
             Usuario
-            <input value={loginUsername} onChange={e=>setLoginUsername(e.target.value)}
-              onKeyDown={e=>e.key==='Enter'&&handleLogin()}
-              style={{padding:'10px 12px',borderRadius:8,border:'2px solid #e2e8f0',fontSize:14,outline:'none'}}/>
+            <input value={loginUsername} onChange={e=>setLoginUsername(e.target.value)} onKeyDown={e=>e.key==='Enter'&&handleLogin()} style={{padding:'10px 12px',borderRadius:8,border:'2px solid #e2e8f0',fontSize:14,outline:'none'}}/>
           </label>
           <label style={{display:'flex',flexDirection:'column',gap:4,fontSize:12,color:'#64748b',fontWeight:600,marginBottom:10}}>
             Contraseña
-            <input type="password" value={loginPassword} onChange={e=>setLoginPassword(e.target.value)}
-              onKeyDown={e=>e.key==='Enter'&&handleLogin()}
-              style={{padding:'10px 12px',borderRadius:8,border:'2px solid #e2e8f0',fontSize:14,outline:'none'}}/>
+            <input type="password" value={loginPassword} onChange={e=>setLoginPassword(e.target.value)} onKeyDown={e=>e.key==='Enter'&&handleLogin()} style={{padding:'10px 12px',borderRadius:8,border:'2px solid #e2e8f0',fontSize:14,outline:'none'}}/>
           </label>
           {loginError&&<div style={{fontSize:12,color:'#dc2626',marginBottom:10}}>{loginError}</div>}
           <div style={{display:'flex',gap:8}}>
