@@ -1006,17 +1006,15 @@ export default function Home() {
             </div>
             <div
               ref={treeRef}
-              style={{overflowX:'auto',paddingBottom:16}}
+              style={{overflowX:'auto', overflowY:'auto', paddingBottom:16}}
               onTouchStart={handleTouchStart}
               onTouchMove={handleTouchMove as any}
               onTouchEnd={handleTouchEnd}>
-              <div style={{transform:`scale(${scale})`,transformOrigin:'top center',transition:'transform 0.1s'}}>
-                <CollapseContext.Provider value={{collapsed, toggle:toggleCollapse}}>
-                  <div style={{display:'flex',gap:48,justifyContent:'center',padding:'10px 16px',minWidth:'max-content'}}>
-                    {coupleRoots.map(r=><TreeNode key={r.id} person={r} members={members} onSelect={setSelected} onAddMember={async(m)=>{await handleNewMember(m); await loadData()}}/>)}
-                  </div>
-                </CollapseContext.Provider>
-              </div>
+              <CollapseContext.Provider value={{collapsed, toggle:toggleCollapse}}>
+                <div style={{display:'flex',gap:48,justifyContent:'center',padding:'10px 16px',minWidth:'max-content', zoom:scale}}>
+                  {coupleRoots.map(r=><TreeNode key={r.id} person={r} members={members} onSelect={setSelected} onAddMember={async(m)=>{await handleNewMember(m); await loadData()}}/>)}
+                </div>
+              </CollapseContext.Provider>
             </div>
             <div style={{textAlign:'center',marginTop:12,fontSize:11,color:'#94a3b8'}}>
               <span style={{color:'#d97706',fontWeight:700}}>borde dorado</span> = línea de sangre &nbsp;·&nbsp; <span style={{fontWeight:700}}>★</span> = familiar político &nbsp;·&nbsp; † fallecido &nbsp;·&nbsp; <span style={{color:'#d97706'}}>——</span> matrimonio &nbsp;·&nbsp; Toca ▲ para colapsar rama
