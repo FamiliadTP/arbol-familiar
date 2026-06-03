@@ -846,20 +846,21 @@ export default function Home() {
   const treeRef = useRef<HTMLDivElement>(null)
   const treeInnerRef = useRef<HTMLDivElement>(null)
 
-  // Center tree on load - find gen1 nodes and center on them
+  // Center tree on load - wait for DOM paint then find gen1 node
   useEffect(()=>{
-    if (treeInnerRef.current && treeRef.current) {
+    if (!members.length) return
+    setTimeout(() => {
+      if (!treeInnerRef.current || !treeRef.current) return
       const outer = treeRef.current
-      const gen1Node = treeInnerRef.current.querySelector('[data-gen="1"]') as HTMLElement
+      const inner = treeInnerRef.current
+      const gen1Node = inner.querySelector('[data-gen="1"]') as HTMLElement
       if (gen1Node) {
-        const nodeLeft = gen1Node.offsetLeft
-        const nodeWidth = gen1Node.offsetWidth
-        outer.scrollLeft = nodeLeft - (outer.clientWidth / 2) + (nodeWidth / 2)
+        outer.scrollLeft = gen1Node.offsetLeft - (outer.clientWidth / 2) + (gen1Node.offsetWidth / 2)
       } else {
-        outer.scrollLeft = (treeInnerRef.current.scrollWidth - outer.clientWidth) / 2
+        outer.scrollLeft = (inner.scrollWidth - outer.clientWidth) / 2
       }
       outer.scrollTop = 0
-    }
+    }, 150)
   }, [members])
   const lastDist = useRef<number|null>(null)
 
