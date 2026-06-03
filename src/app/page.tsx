@@ -581,18 +581,24 @@ function EditModal({person,isAdmin,onClose,onSubmit}:{person:Member;isAdmin:bool
   )
 }
 
-function PendingView({pending,onApprove,onReject}:{pending:PendingEdit[];onApprove:(id:string)=>void;onReject:(id:string)=>void}){
+function PendingView({pending,members,onApprove,onReject,onEdit}:{pending:PendingEdit[];members:Member[];onApprove:(id:string)=>void;onReject:(id:string)=>void;onEdit:(m:Member)=>void}){
   if(!pending.length)return<div style={{textAlign:'center',padding:60,color:'#94a3b8'}}><div style={{fontSize:40}}>✅</div><div style={{marginTop:12,fontWeight:600}}>No hay cambios pendientes</div></div>
   return<div style={{display:'flex',flexDirection:'column',gap:12}}>
-    {pending.map(e=><div key={e.id} style={{background:'#fffbeb',border:'2px solid #fbbf24',borderRadius:14,padding:18}}>
-      <div style={{fontWeight:700,fontSize:14,marginBottom:6}}>Propuesto por: {e.proposed_by}</div>
-      {e.note&&<div style={{fontSize:12,color:'#92400e',marginBottom:10,background:'#fef3c7',borderRadius:6,padding:'6px 10px'}}>💬 {e.note}</div>}
-      <div style={{fontSize:12,color:'#64748b',marginBottom:12}}>{Object.entries(e.changes).map(([k,v])=><div key={k}>• <b>{k}</b>: {String(v)}</div>)}</div>
-      <div style={{display:'flex',gap:8}}>
-        <button onClick={()=>onApprove(e.id)} style={{padding:'8px 16px',background:'#16a34a',color:'#fff',border:'none',borderRadius:8,cursor:'pointer',fontWeight:700,fontSize:12}}>✓ Aprobar</button>
-        <button onClick={()=>onReject(e.id)} style={{padding:'8px 16px',background:'#dc2626',color:'#fff',border:'none',borderRadius:8,cursor:'pointer',fontWeight:700,fontSize:12}}>✕ Rechazar</button>
+    {pending.map(e=>{
+      const member = members.find(m=>m.id===e.member_id)
+      return <div key={e.id} style={{background:'#fffbeb',border:'2px solid #fbbf24',borderRadius:14,padding:18}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:6}}>
+          <div style={{fontWeight:700,fontSize:14}}>Propuesto por: {e.proposed_by}</div>
+          {member&&<button onClick={()=>onEdit(member)} style={{padding:'4px 10px',background:'#1e293b',color:'#fff',border:'none',borderRadius:6,cursor:'pointer',fontSize:11,fontWeight:700,flexShrink:0}}>✏️ Editar ficha</button>}
+        </div>
+        {e.note&&<div style={{fontSize:12,color:'#92400e',marginBottom:10,background:'#fef3c7',borderRadius:6,padding:'6px 10px'}}>💬 {e.note}</div>}
+        <div style={{fontSize:12,color:'#64748b',marginBottom:12}}>{Object.entries(e.changes).map(([k,v])=><div key={k}>• <b>{k}</b>: {String(v)}</div>)}</div>
+        <div style={{display:'flex',gap:8}}>
+          <button onClick={()=>onApprove(e.id)} style={{padding:'8px 16px',background:'#16a34a',color:'#fff',border:'none',borderRadius:8,cursor:'pointer',fontWeight:700,fontSize:12}}>✓ Aprobar</button>
+          <button onClick={()=>onReject(e.id)} style={{padding:'8px 16px',background:'#dc2626',color:'#fff',border:'none',borderRadius:8,cursor:'pointer',fontWeight:700,fontSize:12}}>✕ Rechazar</button>
+        </div>
       </div>
-    </div>)}
+    })}
   </div>
 }
 
@@ -833,9 +839,22 @@ export default function Home() {
   const [usingDemo, setUsingDemo] = useState(false)
   const [importing, setImporting] = useState(false)
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+  const [bdayPopup, setBdayPopup] = useState<Member[]>([])
+  const [showBdayPopup, setShowBdayPopup] = useState(false)
   // Pinch-to-zoom state
   const [scale, setScale] = useState(1)
   const treeRef = useRef<HTMLDivElement>(null)
+  const treeInnerRef = useRef<HTMLDivElement>(null)
+
+  // Center tree on load
+  useEffect(()=>{
+    if (treeInnerRef.current && treeRef.current) {
+      const inner = treeInnerRef.current
+      const outer = treeRef.current
+      const scrollLeft = (inner.scrollWidth - outer.clientWidth) / 2
+      outer.scrollLeft = scrollLeft
+    }
+  }, [members])
   const lastDist = useRef<number|null>(null)
 
   const isAdmin = !!adminUser
@@ -902,6 +921,25 @@ export default function Home() {
     } catch { setMembers(SAMPLE_MEMBERS as Member[]); setUsingDemo(true) }
     setLoading(false)
   }
+
+  // Check birthdays in next 15 days
+  useEffect(()=>{
+    if (members.length === 0) return
+    const today = new Date()
+    const alive = members.filter(m => !m.died)
+    const upcoming = alive.filter(m => {
+      const [,mm,dd] = m.born.split('-').map(Number)
+      const bday = new Date(today.getFullYear(), mm-1, dd)
+      if (bday < today) bday.setFullYear(today.getFullYear()+1)
+      const diff = (bday.getTime() - today.getTime()) / (1000*60*60*24)
+      return diff >= 0 && diff <= 15
+    }).sort((a,b) => {
+      const [,am,ad] = a.born.split('-').map(Number)
+      const [,bm,bd] = b.born.split('-').map(Number)
+      return new Date(today.getFullYear(), am-1, ad).getTime() - new Date(today.getFullYear(), bm-1, bd).getTime()
+    })
+    if (upcoming.length > 0) { setBdayPopup(upcoming); setShowBdayPopup(true) }
+  }, [members])
 
   async function handleEditSubmit(updated:Member,note:string){
     if(usingDemo){ setMembers(m=>m.map(x=>x.id===updated.id?updated:x)); showToast('✅ Guardado (modo demo)') }
@@ -1011,7 +1049,7 @@ export default function Home() {
               onTouchMove={handleTouchMove as any}
               onTouchEnd={handleTouchEnd}>
               <CollapseContext.Provider value={{collapsed, toggle:toggleCollapse}}>
-                <div style={{display:'flex',gap:48,justifyContent:'center',padding:'10px 16px',minWidth:'max-content', zoom:scale}}>
+                <div ref={treeInnerRef} style={{display:'flex',gap:48,justifyContent:'center',padding:'10px 16px',minWidth:'max-content', zoom:scale}}>
                   {coupleRoots.map(r=><TreeNode key={r.id} person={r} members={members} onSelect={setSelected} onAddMember={async(m)=>{await handleNewMember(m); await loadData()}}/>)}
                 </div>
               </CollapseContext.Provider>
@@ -1025,7 +1063,7 @@ export default function Home() {
         {view==='birthdays'&&<BirthdayView members={members} onSelect={setSelected}/>}
         {view==='stats'&&<StatsView members={members}/>}
         {view==='admin'&&isAdmin&&<AdminPanel onChangePassword={handleChangePassword} onImportExcel={handleImportExcel} onAddMember={()=>setShowNewMember(true)} importing={importing} members={members} isSuper={isSuper} adminUser={adminUser}/>}
-        {view==='pending'&&isAdmin&&<PendingView pending={pending} onApprove={handleApprove} onReject={handleReject}/>}
+        {view==='pending'&&isAdmin&&<PendingView pending={pending} members={members} onApprove={handleApprove} onReject={handleReject} onEdit={setEditTarget}/>}
       </div>
 
       {selected&&<PersonCard person={selected} members={members} onClose={()=>setSelected(null)} onEdit={setEditTarget} isAdmin={isAdmin}/>}
@@ -1052,6 +1090,44 @@ export default function Home() {
           </div>
         </div>
       </div>}
+
+      {showBdayPopup&&bdayPopup.length>0&&(
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:4000,padding:20}} onClick={()=>setShowBdayPopup(false)}>
+          <div style={{background:'#fff',borderRadius:20,padding:24,maxWidth:400,width:'100%',boxShadow:'0 20px 60px rgba(0,0,0,0.3)'}} onClick={e=>e.stopPropagation()}>
+            <div style={{background:'linear-gradient(135deg,#7c3aed,#db2777)',borderRadius:12,padding:'14px 16px',marginBottom:16,color:'#fff',textAlign:'center'}}>
+              <div style={{fontSize:28,marginBottom:4}}>🎂</div>
+              <div style={{fontWeight:800,fontSize:16}}>Cumpleaños próximos</div>
+              <div style={{fontSize:12,opacity:0.85,marginTop:2}}>En los próximos 15 días</div>
+            </div>
+            <div style={{display:'flex',flexDirection:'column',gap:10,marginBottom:16}}>
+              {bdayPopup.map(p=>{
+                const today=new Date()
+                const [,mm,dd]=p.born.split('-').map(Number)
+                const bday=new Date(today.getFullYear(),mm-1,dd)
+                if(bday<today)bday.setFullYear(today.getFullYear()+1)
+                const diff=Math.round((bday.getTime()-today.getTime())/(1000*60*60*24))
+                const age=today.getFullYear()-Number(p.born.split('-')[0])+(bday<today?1:0)
+                return <div key={p.id} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 12px',background:'#f8fafc',borderRadius:10}}>
+                  <Avatar p={p} size={40}/>
+                  <div style={{flex:1}}>
+                    <div style={{fontWeight:700,fontSize:14}}>{fullName(p)}</div>
+                    <div style={{fontSize:12,color:'#64748b'}}>{p.born.slice(8)}/{p.born.slice(5,7)} · cumple {age} años</div>
+                  </div>
+                  <div style={{textAlign:'right'}}>
+                    {diff===0
+                      ? <div style={{background:'#fef9c3',color:'#92400e',borderRadius:8,padding:'3px 8px',fontSize:11,fontWeight:700}}>¡Hoy! 🎉</div>
+                      : <div style={{background:'#ede9fe',color:'#7c3aed',borderRadius:8,padding:'3px 8px',fontSize:11,fontWeight:700}}>en {diff} día{diff!==1?'s':''}</div>
+                    }
+                  </div>
+                </div>
+              })}
+            </div>
+            <button onClick={()=>setShowBdayPopup(false)} style={{width:'100%',padding:'10px',background:'#1e293b',color:'#fff',border:'none',borderRadius:10,cursor:'pointer',fontWeight:700,fontSize:14}}>
+              ¡Entendido!
+            </button>
+          </div>
+        </div>
+      )}
 
       {toast&&<div style={{position:'fixed',bottom:24,left:'50%',transform:'translateX(-50%)',background:toast.type==='error'?'#dc2626':toast.type==='info'?'#2563eb':'#16a34a',color:'#fff',padding:'10px 20px',borderRadius:30,fontWeight:700,fontSize:13,boxShadow:'0 8px 25px rgba(0,0,0,0.2)',zIndex:5000,whiteSpace:'nowrap'}}>{toast.msg}</div>}
     </div>
