@@ -1045,7 +1045,7 @@ export default function Home() {
             </div>
             <div
               ref={treeRef}
-              style={{overflowX:'auto', overflowY:'auto', paddingBottom:16}}
+              style={{overflowX:'auto', overflowY:'auto', paddingBottom:16, maxHeight:'80vh'}}
               onTouchStart={handleTouchStart}
               onTouchMove={handleTouchMove as any}
               onTouchEnd={handleTouchEnd}>
