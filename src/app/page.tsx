@@ -89,7 +89,7 @@ function MiniCard({person,onSelect,collapsed,onToggleCollapse}:{person:Member;on
   const shadow = isBlood ? '0 2px 10px rgba(217,119,6,0.3)' : '0 1px 4px rgba(0,0,0,0.06)'
   return (
     <div style={{position:'relative'}}>
-      <div onClick={()=>onSelect(person)} style={{background:bg,border:`${borderWidth} ${borderStyle} ${border}`,borderRadius:12,padding:'10px 12px',cursor:'pointer',minWidth:100,textAlign:'center',opacity:person.died?0.75:1,boxShadow:shadow,transition:'transform 0.15s',position:'relative'}}
+      <div data-gen={person.generation} onClick={()=>onSelect(person)} style={{background:bg,border:`${borderWidth} ${borderStyle} ${border}`,borderRadius:12,padding:'10px 12px',cursor:'pointer',minWidth:100,textAlign:'center',opacity:person.died?0.75:1,boxShadow:shadow,transition:'transform 0.15s',position:'relative'}}
         onMouseEnter={e=>(e.currentTarget.style.transform='translateY(-2px)')}
         onMouseLeave={e=>(e.currentTarget.style.transform='')}>
         {person.died&&<div style={{position:'absolute',top:-6,right:-6,fontSize:11,background:'#64748b',color:'#fff',borderRadius:'50%',width:18,height:18,display:'flex',alignItems:'center',justifyContent:'center'}}>†</div>}
@@ -846,13 +846,19 @@ export default function Home() {
   const treeRef = useRef<HTMLDivElement>(null)
   const treeInnerRef = useRef<HTMLDivElement>(null)
 
-  // Center tree on load
+  // Center tree on load - find gen1 nodes and center on them
   useEffect(()=>{
     if (treeInnerRef.current && treeRef.current) {
-      const inner = treeInnerRef.current
       const outer = treeRef.current
-      const scrollLeft = (inner.scrollWidth - outer.clientWidth) / 2
-      outer.scrollLeft = scrollLeft
+      const gen1Node = treeInnerRef.current.querySelector('[data-gen="1"]') as HTMLElement
+      if (gen1Node) {
+        const nodeLeft = gen1Node.offsetLeft
+        const nodeWidth = gen1Node.offsetWidth
+        outer.scrollLeft = nodeLeft - (outer.clientWidth / 2) + (nodeWidth / 2)
+      } else {
+        outer.scrollLeft = (treeInnerRef.current.scrollWidth - outer.clientWidth) / 2
+      }
+      outer.scrollTop = 0
     }
   }, [members])
   const lastDist = useRef<number|null>(null)
