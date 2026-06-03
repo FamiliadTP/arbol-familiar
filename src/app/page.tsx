@@ -925,7 +925,8 @@ export default function Home() {
   // Check birthdays in next 15 days
   useEffect(()=>{
     if (members.length === 0) return
-    const today = new Date()
+    const now = new Date()
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
     const alive = members.filter(m => !m.died)
     const upcoming = alive.filter(m => {
       const [,mm,dd] = m.born.split('-').map(Number)
@@ -1101,12 +1102,13 @@ export default function Home() {
             </div>
             <div style={{display:'flex',flexDirection:'column',gap:10,marginBottom:16}}>
               {bdayPopup.map(p=>{
-                const today=new Date()
+                const now=new Date()
+                const today=new Date(now.getFullYear(),now.getMonth(),now.getDate())
                 const [,mm,dd]=p.born.split('-').map(Number)
                 const bday=new Date(today.getFullYear(),mm-1,dd)
                 if(bday<today)bday.setFullYear(today.getFullYear()+1)
                 const diff=Math.round((bday.getTime()-today.getTime())/(1000*60*60*24))
-                const age=today.getFullYear()-Number(p.born.split('-')[0])+(bday<today?1:0)
+                const age=today.getFullYear()-Number(p.born.split('-')[0])+(bday<=today?1:0)
                 return <div key={p.id} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 12px',background:'#f8fafc',borderRadius:10}}>
                   <Avatar p={p} size={40}/>
                   <div style={{flex:1}}>
