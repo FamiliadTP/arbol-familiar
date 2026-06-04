@@ -1118,7 +1118,7 @@ export default function Home() {
                 const bday=new Date(today.getFullYear(),mm-1,dd)
                 if(bday<today)bday.setFullYear(today.getFullYear()+1)
                 const diff=Math.round((bday.getTime()-today.getTime())/(1000*60*60*24))
-                const age=today.getFullYear()-Number(p.born.split('-')[0])+(bday<=today?1:0)
+                const age=today.getFullYear()-Number(p.born.split('-')[0])
                 return <div key={p.id} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 12px',background:'#f8fafc',borderRadius:10}}>
                   <Avatar p={p} size={40}/>
                   <div style={{flex:1}}>
