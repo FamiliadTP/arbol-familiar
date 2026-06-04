@@ -846,7 +846,7 @@ export default function Home() {
   const treeRef = useRef<HTMLDivElement>(null)
   const treeInnerRef = useRef<HTMLDivElement>(null)
 
-  // Center tree on load - wait for DOM paint then find gen1 node
+  // Center tree on load - use getBoundingClientRect for accurate visual position
   useEffect(()=>{
     if (!members.length) return
     setTimeout(() => {
@@ -855,7 +855,11 @@ export default function Home() {
       const inner = treeInnerRef.current
       const gen1Node = inner.querySelector('[data-gen="1"]') as HTMLElement
       if (gen1Node) {
-        outer.scrollLeft = gen1Node.offsetLeft - (outer.clientWidth / 2) + (gen1Node.offsetWidth / 2)
+        const outerRect = outer.getBoundingClientRect()
+        const nodeRect = gen1Node.getBoundingClientRect()
+        // nodeRect.left is relative to viewport; convert to scroll position
+        const nodeCenter = outer.scrollLeft + nodeRect.left - outerRect.left + nodeRect.width / 2
+        outer.scrollLeft = nodeCenter - outer.clientWidth / 2
       } else {
         outer.scrollLeft = (inner.scrollWidth - outer.clientWidth) / 2
       }
