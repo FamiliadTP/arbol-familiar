@@ -857,14 +857,13 @@ export default function Home() {
       if (gen1Node) {
         const outerRect = outer.getBoundingClientRect()
         const nodeRect = gen1Node.getBoundingClientRect()
-        // nodeRect.left is relative to viewport; convert to scroll position
-        const nodeCenter = outer.scrollLeft + nodeRect.left - outerRect.left + nodeRect.width / 2
+        const nodeCenter = outer.scrollLeft + (nodeRect.left - outerRect.left) + nodeRect.width / 2
         outer.scrollLeft = nodeCenter - outer.clientWidth / 2
       } else {
         outer.scrollLeft = (inner.scrollWidth - outer.clientWidth) / 2
       }
       outer.scrollTop = 0
-    }, 150)
+    }, 500)
   }, [members])
   const lastDist = useRef<number|null>(null)
 
