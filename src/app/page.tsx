@@ -1032,7 +1032,7 @@ export default function Home() {
     <div style={{minHeight:'100vh',background:'#f1f5f9'}}>
       <div style={{background:'linear-gradient(135deg,#1e293b,#334155)',padding:'16px 16px',display:'flex',alignItems:'center',justifyContent:'space-between',boxShadow:'0 4px 20px rgba(0,0,0,0.2)'}}>
         <div>
-          <div style={{color:'#fff',fontSize:18,fontWeight:900,letterSpacing:-0.5}}>🌳 Árbol Familiar</div>
+          <div style={{color:'#fff',fontSize:18,fontWeight:900,letterSpacing:-0.5}}>🌳 Familia de Tezanos Pinto Domínguez</div>
           <div style={{color:'#94a3b8',fontSize:11,marginTop:2}}>{members.length} miembros{usingDemo?' · modo demo':''}</div>
         </div>
         {adminUser
