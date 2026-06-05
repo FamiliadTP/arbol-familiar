@@ -1022,7 +1022,7 @@ export default function Home() {
 
   const VIEWS=[
     {id:'tree',label:'🌳 Árbol'},{id:'list',label:'📋 Lista'},
-    {id:'birthdays',label:'🎂 Cumpleaños'},{id:'stats',label:'📊 Stats'},
+    {id:'birthdays',label:'🎂 Cumpleaños'},{id:'stats',label:'📊 Estadísticas'},
     ...(isAdmin?[{id:'admin',label:'👑 Admin'},{id:'pending',label:'⏳ Aprobar'+(pending.length>0?' ('+pending.length+')':'')}]:[]),
   ]
 
