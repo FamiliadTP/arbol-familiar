@@ -807,6 +807,185 @@ function NewMemberModal({onClose,onSave}:{onClose:()=>void;onSave:(m:Member)=>vo
   )
 }
 
+// ─── VISTA RAMAS: muestra cada hijo G2 con su familia en vertical ───────────
+
+function BranchCard({ person, onSelect, highlight=false }: { person: Member; onSelect:(p:Member)=>void; highlight?:boolean }) {
+  const bg = person.gender==='M' ? '#dbeafe' : '#fce7f3'
+  const border = highlight ? '#d97706' : (person.external ? '#94a3b8' : '#d97706')
+  const borderStyle = person.external ? 'dashed' : 'solid'
+  return (
+    <div onClick={()=>onSelect(person)} style={{background: person.external ? '#f8fafc' : bg, border:`2px ${borderStyle} ${border}`,borderRadius:12,padding:'10px 14px',cursor:'pointer',display:'flex',alignItems:'center',gap:10,minWidth:160,maxWidth:220,opacity:person.died?0.75:1,boxShadow:highlight?'0 2px 10px rgba(217,119,6,0.3)':'0 1px 4px rgba(0,0,0,0.06)',transition:'transform 0.15s'}}
+      onMouseEnter={e=>(e.currentTarget.style.transform='translateY(-2px)')}
+      onMouseLeave={e=>(e.currentTarget.style.transform='')}>
+      <Avatar p={person} size={36}/>
+      <div style={{minWidth:0}}>
+        <div style={{fontSize:12,fontWeight:700,color:'#1e293b',lineHeight:1.2,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{person.name} {person.surname1}</div>
+        <div style={{fontSize:10,color:'#64748b',marginTop:1}}>{person.born?.slice(0,4)}{person.died?`–${person.died.slice(0,4)}`:''}</div>
+        {person.died&&<div style={{fontSize:10,color:'#94a3b8'}}>† In Memoriam</div>}
+      </div>
+    </div>
+  )
+}
+
+function BranchSection({ person, members, onSelect, depth=0 }: { person:Member; members:Member[]; onSelect:(p:Member)=>void; depth?:number }) {
+  const [open, setOpen] = React.useState(true)
+
+  let prevMarriages: Array<{spouse_id:string|null,children_ids:string[]}> = []
+  if (person.bio_notes) {
+    try { const p=JSON.parse(person.bio_notes); if(Array.isArray(p)) prevMarriages=p } catch {}
+  }
+
+  const allMarriages = getMarriages(person, members)
+  const totalChildren = allMarriages.reduce((s,m)=>s+m.children.length,0)
+
+  const indentLeft = depth * 24
+
+  return (
+    <div style={{marginBottom: depth===0?0:0}}>
+      {/* Cabecera: persona + cónyuge(s) */}
+      <div style={{display:'flex',alignItems:'center',gap:8,marginLeft:indentLeft,flexWrap:'wrap'}}>
+        <BranchCard person={person} onSelect={onSelect} highlight={!person.external}/>
+        {allMarriages.map((m,i)=>m.spouse&&(
+          <React.Fragment key={i}>
+            <div style={{color:'#d97706',fontWeight:900,fontSize:16}}>⚭</div>
+            <BranchCard person={m.spouse} onSelect={onSelect}/>
+          </React.Fragment>
+        ))}
+        {totalChildren>0&&(
+          <button onClick={()=>setOpen(o=>!o)} style={{padding:'3px 8px',borderRadius:20,border:'1px solid #e2e8f0',background:'#fff',cursor:'pointer',fontSize:11,fontWeight:700,color:'#64748b',flexShrink:0}}>
+            {open?'▲':'▼'} {totalChildren} {totalChildren===1?'hijo':'hijos'}
+          </button>
+        )}
+      </div>
+
+      {/* Línea vertical + hijos */}
+      {open && totalChildren>0 && (
+        <div style={{marginLeft:indentLeft+20,marginTop:6,borderLeft:'2px solid #fcd34d',paddingLeft:16,display:'flex',flexDirection:'column',gap:8}}>
+          {allMarriages.map((marriage,mi)=>
+            marriage.children.map(child=>(
+              <div key={child.id} style={{position:'relative'}}>
+                {/* Tick horizontal */}
+                <div style={{position:'absolute',left:-18,top:22,width:18,height:2,background:'#fcd34d'}}/>
+                <BranchSection person={child} members={members} onSelect={onSelect} depth={0}/>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function BranchView({ members, onSelect }: { members:Member[]; onSelect:(p:Member)=>void }) {
+  const g1 = members.filter(m=>m.generation===1&&!m.external)
+  const g2roots = members.filter(m=>m.generation===2&&!m.external)
+  // Ordenar por fecha de nacimiento
+  const sorted = [...g2roots].sort((a,b)=>a.born.localeCompare(b.born))
+
+  return (
+    <div>
+      <div style={{background:'linear-gradient(135deg,#1e293b,#334155)',borderRadius:14,padding:'14px 18px',marginBottom:20,color:'#fff'}}>
+        <div style={{fontSize:14,fontWeight:800}}>🌿 Vista por Ramas Familiares</div>
+        <div style={{fontSize:12,opacity:0.75,marginTop:3}}>Cada hijo de la 2ª generación con su familia desplegada verticalmente</div>
+      </div>
+      <div style={{display:'flex',flexDirection:'column',gap:24}}>
+        {sorted.map(person=>(
+          <div key={person.id} style={{background:'#fff',borderRadius:16,padding:20,boxShadow:'0 2px 12px rgba(0,0,0,0.06)',border:'1px solid #e2e8f0'}}>
+            <div style={{fontSize:11,fontWeight:800,color:'#94a3b8',textTransform:'uppercase',letterSpacing:2,marginBottom:12}}>
+              Rama de {person.name} {person.surname1}
+            </div>
+            <BranchSection person={person} members={members} onSelect={onSelect}/>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ─── VISTA ÁRBOL INDIVIDUAL: subárbol de cualquier persona G2/G3 ─────────────
+
+function MiniTreeNode({ person, members, onSelect, depth=0 }: { person:Member; members:Member[]; onSelect:(p:Member)=>void; depth?:number }) {
+  const [open, setOpen] = React.useState(true)
+  const marriages = getMarriages(person, members)
+  const totalChildren = marriages.reduce((s,m)=>s+m.children.length,0)
+
+  return (
+    <div style={{display:'flex',flexDirection:'column',alignItems:'flex-start'}}>
+      {/* Fila: persona + parejas */}
+      <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap',marginBottom:totalChildren&&open?0:0}}>
+        <BranchCard person={person} onSelect={onSelect} highlight={!person.external}/>
+        {marriages.map((m,i)=>m.spouse&&(
+          <React.Fragment key={i}>
+            <div style={{color:'#d97706',fontWeight:900,fontSize:15}}>⚭</div>
+            <BranchCard person={m.spouse} onSelect={onSelect}/>
+          </React.Fragment>
+        ))}
+        {totalChildren>0&&(
+          <button onClick={()=>setOpen(o=>!o)} style={{padding:'3px 8px',borderRadius:20,border:'1px solid #e2e8f0',background:'#fff',cursor:'pointer',fontSize:11,fontWeight:700,color:'#64748b'}}>
+            {open?'▲':'▼'}
+          </button>
+        )}
+      </div>
+
+      {/* Hijos anidados */}
+      {open && totalChildren>0 && (
+        <div style={{marginLeft:28,marginTop:6,borderLeft:'2px solid #fcd34d',paddingLeft:14,display:'flex',flexDirection:'column',gap:10}}>
+          {marriages.map((marriage,mi)=>
+            marriage.children.map(child=>(
+              <div key={child.id} style={{position:'relative'}}>
+                <div style={{position:'absolute',left:-16,top:22,width:16,height:2,background:'#fcd34d'}}/>
+                <MiniTreeNode person={child} members={members} onSelect={onSelect} depth={depth+1}/>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function FocusTreeView({ members, onSelect }: { members:Member[]; onSelect:(p:Member)=>void }) {
+  const candidates = members.filter(m=>(m.generation===2||m.generation===3)&&!m.external)
+  const sorted = [...candidates].sort((a,b)=>a.generation-b.generation||a.born.localeCompare(b.born))
+  const [focusId, setFocusId] = React.useState<string>(sorted[0]?.id??'')
+  const focused = members.find(m=>m.id===focusId)
+
+  return (
+    <div>
+      <div style={{background:'linear-gradient(135deg,#7c3aed,#a855f7)',borderRadius:14,padding:'14px 18px',marginBottom:20,color:'#fff'}}>
+        <div style={{fontSize:14,fontWeight:800}}>🔍 Árbol Individual</div>
+        <div style={{fontSize:12,opacity:0.75,marginTop:3}}>Visualiza el subárbol de cualquier miembro de la 2ª o 3ª generación</div>
+      </div>
+
+      {/* Selector */}
+      <div style={{marginBottom:20}}>
+        <label style={{fontSize:12,fontWeight:700,color:'#64748b',display:'block',marginBottom:6}}>Seleccionar persona:</label>
+        <select value={focusId} onChange={e=>setFocusId(e.target.value)}
+          style={{padding:'10px 14px',borderRadius:10,border:'2px solid #e2e8f0',fontSize:13,fontWeight:600,color:'#1e293b',background:'#fff',outline:'none',width:'100%',maxWidth:360,cursor:'pointer'}}>
+          {[2,3].map(gen=>(
+            <optgroup key={gen} label={`— Generación ${gen} —`}>
+              {sorted.filter(m=>m.generation===gen).map(m=>(
+                <option key={m.id} value={m.id}>{m.name} {m.surname1} {m.surname2}</option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
+      </div>
+
+      {/* Subárbol */}
+      {focused && (
+        <div style={{background:'#fff',borderRadius:16,padding:24,boxShadow:'0 2px 12px rgba(0,0,0,0.06)',border:'1px solid #e2e8f0',overflowX:'auto'}}>
+          <div style={{fontSize:11,fontWeight:800,color:'#7c3aed',textTransform:'uppercase',letterSpacing:2,marginBottom:16}}>
+            Árbol de {focused.name} {focused.surname1} {focused.surname2}
+            <span style={{marginLeft:8,background:'#ede9fe',color:'#7c3aed',borderRadius:20,padding:'2px 10px',fontSize:10,fontWeight:700}}>Gen {focused.generation}</span>
+          </div>
+          <MiniTreeNode person={focused} members={members} onSelect={onSelect}/>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function memberToRpc(m: Member) {
   return {
     id: m.id, name: m.name, surname1: m.surname1, surname2: m.surname2 ?? '',
@@ -825,7 +1004,7 @@ export default function Home() {
   const [members, setMembers] = useState<Member[]>([])
   const [pending, setPending] = useState<PendingEdit[]>([])
   const [loading, setLoading] = useState(true)
-  const [view, setView] = useState<'tree'|'list'|'birthdays'|'stats'|'admin'|'pending'>('tree')
+  const [view, setView] = useState<'tree'|'branches'|'focus'|'list'|'birthdays'|'stats'|'admin'|'pending'>('tree')
   const [selected, setSelected] = useState<Member|null>(null)
   const [editTarget, setEditTarget] = useState<Member|null>(null)
   const [showNewMember, setShowNewMember] = useState(false)
@@ -1021,7 +1200,8 @@ export default function Home() {
   roots.forEach(r=>{if(!seen.has(r.id)){seen.add(r.id);if(r.spouse_id)seen.add(r.spouse_id);coupleRoots.push(r)}})
 
   const VIEWS=[
-    {id:'tree',label:'🌳 Árbol'},{id:'list',label:'📋 Lista'},
+    {id:'tree',label:'🌳 Árbol'},{id:'branches',label:'🌿 Ramas'},{id:'focus',label:'🔍 Individual'},
+    {id:'list',label:'📋 Lista'},
     {id:'birthdays',label:'🎂 Cumpleaños'},{id:'stats',label:'📊 Estadísticas'},
     ...(isAdmin?[{id:'admin',label:'👑 Admin'},{id:'pending',label:'⏳ Aprobar'+(pending.length>0?' ('+pending.length+')':'')}]:[]),
   ]
@@ -1071,6 +1251,8 @@ export default function Home() {
           </div>
         )}
         {view==='list'&&<ListView members={members} onSelect={setSelected}/>}
+        {view==='branches'&&<BranchView members={members} onSelect={setSelected}/>}
+        {view==='focus'&&<FocusTreeView members={members} onSelect={setSelected}/>}
         {view==='birthdays'&&<BirthdayView members={members} onSelect={setSelected}/>}
         {view==='stats'&&<StatsView members={members}/>}
         {view==='admin'&&isAdmin&&<AdminPanel onChangePassword={handleChangePassword} onImportExcel={handleImportExcel} onAddMember={()=>setShowNewMember(true)} importing={importing} members={members} isSuper={isSuper} adminUser={adminUser}/>}
