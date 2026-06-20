@@ -1131,6 +1131,14 @@ export default function Home() {
     if (upcoming.length > 0) { setBdayPopup(upcoming); setShowBdayPopup(true) }
   }, [members])
 
+  // Close birthday popup with the Escape key
+  useEffect(()=>{
+    if(!showBdayPopup) return
+    const onKey=(e:KeyboardEvent)=>{ if(e.key==='Escape') setShowBdayPopup(false) }
+    window.addEventListener('keydown',onKey)
+    return ()=>window.removeEventListener('keydown',onKey)
+  }, [showBdayPopup])
+
   async function handleEditSubmit(updated:Member,note:string){
     if(usingDemo){ setMembers(m=>m.map(x=>x.id===updated.id?updated:x)); showToast('✅ Guardado (modo demo)') }
     else if(isAdmin){
@@ -1286,13 +1294,14 @@ export default function Home() {
 
       {showBdayPopup&&bdayPopup.length>0&&(
         <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:4000,padding:20}} onClick={()=>setShowBdayPopup(false)}>
-          <div style={{background:'#fff',borderRadius:20,padding:24,maxWidth:400,width:'100%',boxShadow:'0 20px 60px rgba(0,0,0,0.3)'}} onClick={e=>e.stopPropagation()}>
-            <div style={{background:'linear-gradient(135deg,#7c3aed,#db2777)',borderRadius:12,padding:'14px 16px',marginBottom:16,color:'#fff',textAlign:'center'}}>
+          <div style={{background:'#fff',borderRadius:20,padding:24,maxWidth:400,width:'100%',maxHeight:'85vh',display:'flex',flexDirection:'column',boxShadow:'0 20px 60px rgba(0,0,0,0.3)'}} onClick={e=>e.stopPropagation()}>
+            <div style={{position:'relative',background:'linear-gradient(135deg,#7c3aed,#db2777)',borderRadius:12,padding:'14px 16px',marginBottom:16,color:'#fff',textAlign:'center',flexShrink:0}}>
+              <button onClick={()=>setShowBdayPopup(false)} aria-label="Cerrar" style={{position:'absolute',top:8,right:10,background:'rgba(255,255,255,0.2)',border:'none',width:26,height:26,borderRadius:'50%',color:'#fff',fontSize:18,lineHeight:'1',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>×</button>
               <div style={{fontSize:28,marginBottom:4}}>🎂</div>
               <div style={{fontWeight:800,fontSize:16}}>Cumpleaños próximos</div>
-              <div style={{fontSize:12,opacity:0.85,marginTop:2}}>En los próximos 15 días</div>
+              <div style={{fontSize:12,opacity:0.85,marginTop:2}}>En los próximos 15 días · {bdayPopup.length}</div>
             </div>
-            <div style={{display:'flex',flexDirection:'column',gap:10,marginBottom:16}}>
+            <div style={{display:'flex',flexDirection:'column',gap:10,marginBottom:16,overflowY:'auto',flex:'1 1 auto',minHeight:0}}>
               {bdayPopup.map(p=>{
                 const now=new Date()
                 const today=new Date(now.getFullYear(),now.getMonth(),now.getDate())
@@ -1316,7 +1325,7 @@ export default function Home() {
                 </div>
               })}
             </div>
-            <button onClick={()=>setShowBdayPopup(false)} style={{width:'100%',padding:'10px',background:'#1e293b',color:'#fff',border:'none',borderRadius:10,cursor:'pointer',fontWeight:700,fontSize:14}}>
+            <button onClick={()=>setShowBdayPopup(false)} style={{width:'100%',padding:'10px',background:'#1e293b',color:'#fff',border:'none',borderRadius:10,cursor:'pointer',fontWeight:700,fontSize:14,flexShrink:0}}>
               ¡Entendido!
             </button>
           </div>
